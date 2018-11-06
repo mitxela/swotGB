@@ -169,6 +169,27 @@ function ldi(a,b){ //load with increment
 
 }
 
+function ldc(a,b){
+  if (a==A) return function(){ //LD   A, (FF00+C)
+    REG[A] = readMem( 0xFF00 + REG[C] )
+    PC++
+  }
+  return function(){ //LD   (FF00+C),A
+    writeMem(0xFF00 + REG[C], REG[A])
+    PC++
+  }
+}
+function ldh(a,b){
+  if (a==A) return function(){ //LD   A, (FF00+n)
+    REG[A] = readMem( 0xFF00 + MEM[PC+1] )
+    PC+=2
+  }
+  return function(){ //LD   (FF00+n),A
+    writeMem(0xFF00 + MEM[PC+1], REG[A])
+    PC+=2
+  }
+}
+
 
 function ALU(op, a, b){
 
@@ -317,6 +338,45 @@ function jrNZ(){
   else PC += signedOffset(MEM[PC+1])
 }
 
+function jrNC(){
+  if (FLAGS.C) PC+=2
+  else PC += signedOffset(MEM[PC+1])
+}
+
+function jrZ(){
+  if (FLAGS.Z) PC += signedOffset(MEM[PC+1])
+  else PC+=2
+}
+
+function jrC(){
+  if (FLAGS.C) PC += signedOffset(MEM[PC+1])
+  else PC+=2
+}
+
+function jr(){ //unconditional relative
+  PC += signedOffset(MEM[PC+1])
+}
+
+function jp(){ //unconditional absolute
+  PC = MEM[PC+1]+(MEM[PC+2]<<8)
+}
+function jpNZ(){
+  if (FLAGS.Z) PC+=2
+  else PC = MEM[PC+1]+(MEM[PC+2]<<8)
+}
+function jpNC(){
+  if (FLAGS.C) PC+=2
+  else PC = MEM[PC+1]+(MEM[PC+2]<<8)
+}
+function jpZ(){
+  if (FLAGS.Z) PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  else PC+=2
+}
+function jpC(){
+  if (FLAGS.C) PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  else PC+=2
+}
+
 
 const unused = function(){}; //GMB locks when called
 
@@ -338,7 +398,7 @@ opcodes[ 0x0E ] = ld(C, Immediate);
 //opcodes[ 0x0F ] = ;
 
 
-//opcodes[ 0x10 ] = ; //STOP
+//opcodes[ 0x10 ] = ; //STOP - wait for keypress
 opcodes[ 0x11 ] = ld16(D,E,Immediate);
 opcodes[ 0x12 ] = ld_to_mem(D,E,A);
 opcodes[ 0x13 ] = inc16(D,E);
@@ -346,7 +406,7 @@ opcodes[ 0x14 ] = inc(D);
 opcodes[ 0x15 ] = dec(D);
 opcodes[ 0x16 ] = ld(D, Immediate);
 //opcodes[ 0x17 ] = ;
-//opcodes[ 0x18 ] = ;
+opcodes[ 0x18 ] = jr;
 //opcodes[ 0x19 ] = ;
 opcodes[ 0x1A ] = ld_from_mem(A, D, E);
 opcodes[ 0x1B ] = dec16(D,E);
@@ -363,7 +423,7 @@ opcodes[ 0x24 ] = inc(H);
 opcodes[ 0x25 ] = dec(H);
 opcodes[ 0x26 ] = ld(H, Immediate);
 //opcodes[ 0x27 ] = ;
-//opcodes[ 0x28 ] = ;
+opcodes[ 0x28 ] = jrZ;
 //opcodes[ 0x29 ] = ;
 opcodes[ 0x2A ] = ldi(A,HL);
 opcodes[ 0x2B ] = dec16(H,L);
@@ -372,7 +432,7 @@ opcodes[ 0x2D ] = dec(L);
 opcodes[ 0x2E ] = ld(L, Immediate);
 //opcodes[ 0x2F ] = ;
 
-//opcodes[ 0x30 ] = ;
+opcodes[ 0x30 ] = jrNC;
 opcodes[ 0x31 ] = ld16(SPr, Immediate);
 opcodes[ 0x32 ] = ldd(HL,A);
 opcodes[ 0x33 ] = inc16(SPr);
@@ -380,7 +440,7 @@ opcodes[ 0x34 ] = inc(HL);
 opcodes[ 0x35 ] = dec(HL);
 opcodes[ 0x36 ] = ld_to_mem(H,L,Immediate);
 //opcodes[ 0x37 ] = ;
-//opcodes[ 0x38 ] = ;
+opcodes[ 0x38 ] = jrC;
 //opcodes[ 0x39 ] = ;
 opcodes[ 0x3A ] = ldd(A,HL);
 opcodes[ 0x3B ] = dec16(SPr);
@@ -536,15 +596,15 @@ opcodes[ 0xBF ] = ALU(CP,A,A);
 
 //opcodes[ 0xC0 ] = ;
 //opcodes[ 0xC1 ] = ;
-//opcodes[ 0xC2 ] = ;
-//opcodes[ 0xC3 ] = ;
+opcodes[ 0xC2 ] = jpNZ;
+opcodes[ 0xC3 ] = jp;
 //opcodes[ 0xC4 ] = ;
 //opcodes[ 0xC5 ] = ;
 opcodes[ 0xC6 ] = ALU(ADD,A,Immediate);
 //opcodes[ 0xC7 ] = ;
 //opcodes[ 0xC8 ] = ;
 //opcodes[ 0xC9 ] = ;
-//opcodes[ 0xCA ] = ;
+opcodes[ 0xCA ] = jpZ;
 opcodes[ 0xCB ] = function(){ CBcodes[ MEM[ ++PC ] ](); }
 //opcodes[ 0xCC ] = ;
 //opcodes[ 0xCD ] = ;
@@ -553,7 +613,7 @@ opcodes[ 0xCE ] = ALU(ADC,A,Immediate);
 
 //opcodes[ 0xD0 ] = ;
 //opcodes[ 0xD1 ] = ;
-//opcodes[ 0xD2 ] = ;
+opcodes[ 0xD2 ] = jpNC;
 opcodes[ 0xD3 ] = unused;
 //opcodes[ 0xD4 ] = ;
 //opcodes[ 0xD5 ] = ;
@@ -561,16 +621,16 @@ opcodes[ 0xD6 ] = ALU(SUB,A,Immediate);
 //opcodes[ 0xD7 ] = ;
 //opcodes[ 0xD8 ] = ;
 //opcodes[ 0xD9 ] = ; //RETI
-//opcodes[ 0xDA ] = ;
+opcodes[ 0xDA ] = jpC;
 opcodes[ 0xDB ] = unused;
 //opcodes[ 0xDC ] = ;
 opcodes[ 0xDD ] = unused;
 opcodes[ 0xDE ] = ALU(SBC,A,Immediate);
 //opcodes[ 0xDF ] = ;
 
-//opcodes[ 0xE0 ] = ; //LD   (FF00+n),A
+opcodes[ 0xE0 ] = ldh(Immediate, A); //LD   (FF00+n),A
 //opcodes[ 0xE1 ] = ;
-//opcodes[ 0xE2 ] = ; //LD   (FF00+C),A
+opcodes[ 0xE2 ] = ldc(C, A); //LD   (FF00+C),A
 opcodes[ 0xE3 ] = unused;
 opcodes[ 0xE4 ] = unused;
 //opcodes[ 0xE5 ] = ;
@@ -585,9 +645,9 @@ opcodes[ 0xED ] = unused;
 opcodes[ 0xEE ] = ALU(XOR,A,Immediate);
 //opcodes[ 0xEF ] = ;
 
-//opcodes[ 0xF0 ] = ; //LD   A,(FF00+n)
+opcodes[ 0xF0 ] = ldh(A, Immediate); //LD   A,(FF00+n)
 //opcodes[ 0xF1 ] = ;
-//opcodes[ 0xF2 ] = ; //LD   A,(FF00+C)
+opcodes[ 0xF2 ] =  ldc(A, C); //LD   A,(FF00+C)
 //opcodes[ 0xF3 ] = ;
 opcodes[ 0xF4 ] = unused;
 //opcodes[ 0xF5 ] = ;
