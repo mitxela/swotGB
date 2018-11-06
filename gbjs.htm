@@ -600,10 +600,69 @@ opcodes[ 0xFE ] = ALU(CP,A,Immediate);
 
 
 
+/*
+CBcodes[ 0x00 ] =
+CBcodes[ 0x01 ] =
+CBcodes[ 0x02 ] =
+CBcodes[ 0x03 ] =
+CBcodes[ 0x04 ] =
+CBcodes[ 0x05 ] =
+CBcodes[ 0x06 ] =
+CBcodes[ 0x07 ] =
+CBcodes[ 0x08 ] =
+CBcodes[ 0x09 ] =
+CBcodes[ 0x0A ] =
+CBcodes[ 0x0B ] =
+CBcodes[ 0x0C ] =
+CBcodes[ 0x0D ] =
+CBcodes[ 0x0E ] =
+CBcodes[ 0x0F ] =
+
+CBcodes[ 0x10 ] =
+CBcodes[ 0x11 ] =
+CBcodes[ 0x12 ] =
+CBcodes[ 0x13 ] =
+CBcodes[ 0x14 ] =
+CBcodes[ 0x15 ] =
+CBcodes[ 0x16 ] =
+CBcodes[ 0x17 ] =
+CBcodes[ 0x18 ] =
+CBcodes[ 0x19 ] =
+CBcodes[ 0x1A ] =
+CBcodes[ 0x1B ] =
+CBcodes[ 0x1C ] =
+CBcodes[ 0x1D ] =
+CBcodes[ 0x1E ] =
+CBcodes[ 0x1F ] =
+
+CBcodes[ 0x20 ] =
+CBcodes[ 0x21 ] =
+CBcodes[ 0x22 ] =
+CBcodes[ 0x23 ] =
+CBcodes[ 0x24 ] =
+CBcodes[ 0x25 ] =
+CBcodes[ 0x26 ] =
+CBcodes[ 0x27 ] =
+CBcodes[ 0x28 ] =
+CBcodes[ 0x29 ] =
+CBcodes[ 0x2A ] =
+CBcodes[ 0x2B ] =
+CBcodes[ 0x2C ] =
+CBcodes[ 0x2D ] =
+CBcodes[ 0x2E ] =
+CBcodes[ 0x2F ] =
+
+CBcodes[ 0x38 ] =
+CBcodes[ 0x39 ] =
+CBcodes[ 0x3A ] =
+CBcodes[ 0x3B ] =
+CBcodes[ 0x3C ] =
+CBcodes[ 0x3D ] =
+CBcodes[ 0x3E ] =
+CBcodes[ 0x3F ] =
+*/
 
 
-
-//CB3X //SWAP r/(HL)
 
 function swap(r){
   if (r==HL) return function(){
@@ -656,7 +715,7 @@ function set(b, r) {
 
   if (r==HL) return function(){
     writeMem(
-      (REG[H]<<8)+REG[L]),
+      (REG[H]<<8)+REG[L],
       readMem((REG[H]<<8)+REG[L]) | b
     )
     PC++
@@ -671,7 +730,7 @@ function res(b, r) {
 
   if (r==HL) return function(){
     writeMem(
-      (REG[H]<<8)+REG[L]),
+      (REG[H]<<8)+REG[L],
       readMem((REG[H]<<8)+REG[L]) & b
     )
     PC++
@@ -683,32 +742,11 @@ function res(b, r) {
 }
 
 for (var i=0;i++;i<8){
-  CBcodes[ 0x40 + i*8 ] = bit(i, B);
-  CBcodes[ 0x41 + i*8 ] = bit(i, C);
-  CBcodes[ 0x42 + i*8 ] = bit(i, D);
-  CBcodes[ 0x43 + i*8 ] = bit(i, E);
-  CBcodes[ 0x44 + i*8 ] = bit(i, H);
-  CBcodes[ 0x45 + i*8 ] = bit(i, L);
-  CBcodes[ 0x46 + i*8 ] = bit(i, HL);
-  CBcodes[ 0x47 + i*8 ] = bit(i, A);
-
-  CBcodes[ 0x80 + i*8 ] = res(i, B);
-  CBcodes[ 0x81 + i*8 ] = res(i, C);
-  CBcodes[ 0x82 + i*8 ] = res(i, D);
-  CBcodes[ 0x83 + i*8 ] = res(i, E);
-  CBcodes[ 0x84 + i*8 ] = res(i, H);
-  CBcodes[ 0x85 + i*8 ] = res(i, L);
-  CBcodes[ 0x86 + i*8 ] = res(i, HL);
-  CBcodes[ 0x87 + i*8 ] = res(i, A);
-
-  CBcodes[ 0xC0 + i*8 ] = set(i, B);
-  CBcodes[ 0xC1 + i*8 ] = set(i, C);
-  CBcodes[ 0xC2 + i*8 ] = set(i, D);
-  CBcodes[ 0xC3 + i*8 ] = set(i, E);
-  CBcodes[ 0xC4 + i*8 ] = set(i, H);
-  CBcodes[ 0xC5 + i*8 ] = set(i, L);
-  CBcodes[ 0xC6 + i*8 ] = set(i, HL);
-  CBcodes[ 0xC7 + i*8 ] = set(i, A);
+  for (var j=0;j++;j<8) {
+    CBcodes[ 0x40 + i*8 + j ] = bit(i, j);
+    CBcodes[ 0x80 + i*8 + j ] = res(i, j);
+    CBcodes[ 0xC0 + i*8 + j ] = set(i, j);
+  }
 }
 
 
