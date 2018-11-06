@@ -1,5 +1,7 @@
 <!doctype html><meta charset=utf-8>
 
+<pre id=out></pre>
+
 <script>
 
 
@@ -84,7 +86,7 @@ function ld_to_mem(a, b, c){
 
 // Messy...
 function ld16(a,b,c){
-  if (a ==)
+  
   
   if (a==Immediate) return function(){
     // HL into mem
@@ -95,8 +97,8 @@ function ld16(a,b,c){
 
     if (a==HL) return function(){
       // mem to hl
-      REG[L] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ])
-      REG[H] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ] + 1)
+      REG[L] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ]<<8))
+      REG[H] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ]<<8) + 1)
 
       PC+=3
     }
@@ -227,69 +229,69 @@ opcodes[ 0x01 ] = ld16(B,C,Immediate);
 opcodes[ 0x02 ] = ld_to_mem(B,C,A);
 opcodes[ 0x03 ] = inc(BC);
 opcodes[ 0x04 ] = inc(B);
-opcodes[ 0x05 ] = dec(B);
+//opcodes[ 0x05 ] = dec(B);
 opcodes[ 0x06 ] = ld(B, Immediate);
-opcodes[ 0x07 ] = ;
-opcodes[ 0x08 ] = ;
-opcodes[ 0x09 ] = ;
+//opcodes[ 0x07 ] = ;
+//opcodes[ 0x08 ] = ;
+//opcodes[ 0x09 ] = ;
 opcodes[ 0x0A ] = ld_from_mem(A, B, C);
-opcodes[ 0x0B ] = ;
-opcodes[ 0x0C ] = ;
-opcodes[ 0x0D ] = ;
+//opcodes[ 0x0B ] = ;
+//opcodes[ 0x0C ] = ;
+//opcodes[ 0x0D ] = ;
 opcodes[ 0x0E ] = ld(C, Immediate);
-opcodes[ 0x0F ] = ;
+//opcodes[ 0x0F ] = ;
 
 
-opcodes[ 0x10 ] = ;
+//opcodes[ 0x10 ] = ;
 opcodes[ 0x11 ] = ld16(D,E,Immediate);;
 opcodes[ 0x12 ] = ld_to_mem(D,E,A);
-opcodes[ 0x13 ] = ;
-opcodes[ 0x14 ] = ;
-opcodes[ 0x15 ] = ;
+//opcodes[ 0x13 ] = ;
+//opcodes[ 0x14 ] = ;
+//opcodes[ 0x15 ] = ;
 opcodes[ 0x16 ] = ld(D, Immediate);
-opcodes[ 0x17 ] = ;
-opcodes[ 0x18 ] = ;
-opcodes[ 0x19 ] = ;
+//opcodes[ 0x17 ] = ;
+//opcodes[ 0x18 ] = ;
+//opcodes[ 0x19 ] = ;
 opcodes[ 0x1A ] = ld_from_mem(A, D, E);
-opcodes[ 0x1B ] = ;
-opcodes[ 0x1C ] = ;
-opcodes[ 0x1D ] = ;
+//opcodes[ 0x1B ] = ;
+//opcodes[ 0x1C ] = ;
+//opcodes[ 0x1D ] = ;
 opcodes[ 0x1E ] = ld(E, Immediate);
-opcodes[ 0x1F ] = ;
+//opcodes[ 0x1F ] = ;
 
-opcodes[ 0x20 ] = ;
+//opcodes[ 0x20 ] = ;
 opcodes[ 0x21 ] = ld16(H,L,Immediate);
 opcodes[ 0x22 ] = ld16(Immediate, H, L);
-opcodes[ 0x23 ] = ;
-opcodes[ 0x24 ] = ;
-opcodes[ 0x25 ] = ;
+//opcodes[ 0x23 ] = ;
+//opcodes[ 0x24 ] = ;
+//opcodes[ 0x25 ] = ;
 opcodes[ 0x26 ] = ld(H, Immediate);
-opcodes[ 0x27 ] = ;
-opcodes[ 0x28 ] = ;
-opcodes[ 0x29 ] = ;
+//opcodes[ 0x27 ] = ;
+//opcodes[ 0x28 ] = ;
+//opcodes[ 0x29 ] = ;
 opcodes[ 0x2A ] = ld16(HL,Immediate);
-opcodes[ 0x2B ] = ;
-opcodes[ 0x2C ] = ;
-opcodes[ 0x2D ] = ;
+//opcodes[ 0x2B ] = ;
+//opcodes[ 0x2C ] = ;
+//opcodes[ 0x2D ] = ;
 opcodes[ 0x2E ] = ld(L, Immediate);
-opcodes[ 0x2F ] = ;
+//opcodes[ 0x2F ] = ;
 
-opcodes[ 0x30 ] = ;
+//opcodes[ 0x30 ] = ;
 opcodes[ 0x31 ] = ld16(SPr, Immediate);
 opcodes[ 0x32 ] = ld_to_mem(Immediate, A);
-opcodes[ 0x33 ] = ;
-opcodes[ 0x34 ] = ;
-opcodes[ 0x35 ] = ;
+//opcodes[ 0x33 ] = ;
+//opcodes[ 0x34 ] = ;
+//opcodes[ 0x35 ] = ;
 opcodes[ 0x36 ] = ld_to_mem(H,L,Immediate);
-opcodes[ 0x37 ] = ;
-opcodes[ 0x38 ] = ;
-opcodes[ 0x39 ] = ;
+//opcodes[ 0x37 ] = ;
+//opcodes[ 0x38 ] = ;
+//opcodes[ 0x39 ] = ;
 opcodes[ 0x3A ] = ld_from_mem(A, Immediate);
-opcodes[ 0x3B ] = ;
-opcodes[ 0x3C ] = ;
-opcodes[ 0x3D ] = ;
+//opcodes[ 0x3B ] = ;
+//opcodes[ 0x3C ] = ;
+//opcodes[ 0x3D ] = ;
 opcodes[ 0x3E ] = ld(A, Immediate);
-opcodes[ 0x3F ] = ;
+//opcodes[ 0x3F ] = ;
 
 
 opcodes[ 0x40 ] = ld(B,B);
@@ -464,26 +466,26 @@ opcodes[ 0xD6 ] = ALU(SUB,A,Immediate);
 //opcodes[ 0xD8 ] = ;
 //opcodes[ 0xD9 ] = ;
 //opcodes[ 0xDA ] = ;
-//opcodes[ 0xDB ] = unused;
+opcodes[ 0xDB ] = unused;
 //opcodes[ 0xDC ] = ;
-//opcodes[ 0xDD ] = unused;
+opcodes[ 0xDD ] = unused;
 opcodes[ 0xDE ] = ALU(SBC,A,Immediate);
 //opcodes[ 0xDF ] = ;
 
 //opcodes[ 0xE0 ] = ; //LD   (FF00+n),A
 //opcodes[ 0xE1 ] = ;
 //opcodes[ 0xE2 ] = ; //LD   (FF00+C),A
-//opcodes[ 0xE3 ] = unused;
-//opcodes[ 0xE4 ] = unused;
+opcodes[ 0xE3 ] = unused;
+opcodes[ 0xE4 ] = unused;
 //opcodes[ 0xE5 ] = ;
 opcodes[ 0xE6 ] = ALU(AND,A,Immediate);
 //opcodes[ 0xE7 ] = ;
 //opcodes[ 0xE8 ] = ; //ADD  SP,dd
 //opcodes[ 0xE9 ] = ; //LD   (nn),A
 //opcodes[ 0xEA ] = ;
-//opcodes[ 0xEB ] = unused;
-//opcodes[ 0xEC ] = unused;
-//opcodes[ 0xED ] = unused;
+opcodes[ 0xEB ] = unused;
+opcodes[ 0xEC ] = unused;
+opcodes[ 0xED ] = unused;
 opcodes[ 0xEE ] = ALU(XOR,A,Immediate);
 //opcodes[ 0xEF ] = ;
 
@@ -491,7 +493,7 @@ opcodes[ 0xEE ] = ALU(XOR,A,Immediate);
 //opcodes[ 0xF1 ] = ;
 //opcodes[ 0xF2 ] = ; //LD   A,(FF00+C)
 //opcodes[ 0xF3 ] = ;
-//opcodes[ 0xF4 ] = unused;
+opcodes[ 0xF4 ] = unused;
 //opcodes[ 0xF5 ] = ;
 opcodes[ 0xF6 ] = ALU(OR,A,Immediate);
 //opcodes[ 0xF7 ] = ;
@@ -499,8 +501,8 @@ opcodes[ 0xF6 ] = ALU(OR,A,Immediate);
 opcodes[ 0xF9 ] = ld16();
 //opcodes[ 0xFA ] = ; //LD   A,(nn)
 //opcodes[ 0xFB ] = ;
-//opcodes[ 0xFC ] = unused;
-//opcodes[ 0xFD ] = unused;
+opcodes[ 0xFC ] = unused;
+opcodes[ 0xFD ] = unused;
 opcodes[ 0xFE ] = ALU(CP,A,Immediate);
 //opcodes[ 0xFF ] = ;
 
@@ -516,8 +518,8 @@ opcodes[ 0xFE ] = ALU(CP,A,Immediate);
 
 
 
-
-
+testProg = "31 FE FF 3E 2D 47 AF".split(" ")
+for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 
 
@@ -529,13 +531,31 @@ function cpu(){
 
   opcodes[ MEM[ PC ] ]();
 
-  
-
+  debugData();
 }
 
 
 
+(debugData=function(){
+  function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 
+  var debug = "Mem: ";
+  for (var i=0;i<32;i++) debug+=f(MEM[i]) + " ";
+  debug+="\n\nPC: "+ f(PC,4)
+  debug+="\n\nSP: "+ f(SP,4)
+  debug+="\n\nFlags\nZ: "+FLAGS.Z+"\nN: "+FLAGS.N+"\nH: "+FLAGS.N+"\nC: "+FLAGS.C+"\n"
+  
+  debug+="\nA: "+ f(REG[A])
+  debug+="\nB: "+ f(REG[B])
+  debug+="\nC: "+ f(REG[C])
+  debug+="\nD: "+ f(REG[D])
+  debug+="\nE: "+ f(REG[E])
+  debug+="\nH: "+ f(REG[H])
+  debug+="\nL: "+ f(REG[L])
+
+
+  out.innerHTML=debug;
+})();
 
 
 
@@ -548,3 +568,4 @@ function cpu(){
 
 
 </script>
+<button onclick="cpu();return false">CPU</button>
