@@ -88,11 +88,11 @@ function ld_to_mem(a, b, c){
 function ld16(a,b,c){
   
   
-  if (a==Immediate) return function(){
-    // HL into mem
-    writeMem16( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8), REG[H], REG[L] )
-    PC+=3
-  }
+//  if (a==Immediate) return function(){
+//    // HL into mem
+//    writeMem16( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8), REG[H], REG[L] )
+//    PC+=3
+//  }
   if (b==Immediate) {
 
     if (a==HL) return function(){
@@ -124,6 +124,48 @@ function ld16(a,b,c){
     PC++
   }
 }
+
+function ldd(a,b){ //load with decrement
+  if (a==HL) return function(){
+    writeMem( (REG[H]<<8)+REG[L] , REG[A] );
+
+    if (REG[L]==0) REG[H]--;
+    REG[L]--;
+    
+    PC++
+  }
+
+  return function(){
+    REG[A] = readMem( (REG[H]<<8)+REG[L] );
+
+    if (REG[L]==0) REG[H]--;
+    REG[L]--;
+
+    PC++
+  }
+
+}
+function ldi(a,b){ //load with increment
+  if (a==HL) return function(){
+    writeMem( (REG[H]<<8)+REG[L] , REG[A] );
+    
+    if (REG[L]==255) REG[H]++;
+    REG[L]++;
+    
+    PC++
+  }
+
+  return function(){
+    REG[A] = readMem( (REG[H]<<8)+REG[L] );
+
+    if (REG[L]==255) REG[H]++;
+    REG[L]++;
+
+    PC++
+  }
+
+}
+
 
 function ALU(op, a, b){
 
@@ -216,9 +258,53 @@ function ALU_process_8bit(op, b){
   return result&0xFF;
 }
 
-function inc(r) {
-  
+function inc(a){return incdec(a, 1)}
+function dec(a){return incdec(a, -1)}
+
+function incdec(r,offset) {
+  if (r==HL) return function(){
+    writeMem((REG[H]<<8)+REG[L], incdec_process_8bit( readMem( (REG[H]<<8)+REG[L] ) ,offset))
+    PC++
+  }
+
+  return function(){
+    REG[r]=incdec_process_8bit(REG[r],offset)
+    PC++
+  }
 }
+
+function incdec_process_8bit(a,offset) {
+    var result = a+offset;
+    FLAGS.H = (a &(1<<4)) != (result &(1<<4));
+    FLAGS.N = false;
+    FLAGS.Z = (result == 0)
+    return result;
+}
+
+// 16 bit inc / dec affect no flags
+function inc16(a,b) {
+  if (a==SPr) return function(){
+    SP++
+    PC++
+  }
+  return function(){
+    if (REG[b] ==255) REG[a]++;
+    REG[b]++;
+    PC++;
+  }
+}
+function dec16(a,b) {
+  if (a==SPr) return function(){
+    SP--
+    PC++
+  }
+  return function(){
+    if (REG[b] ==0) REG[a]--;
+    REG[b]--;
+    PC++;
+  }
+}
+
 
 
 
@@ -227,69 +313,69 @@ const unused = function(){}; //GMB locks when called
 opcodes[ 0x00 ] = function nop(){ PC++ };
 opcodes[ 0x01 ] = ld16(B,C,Immediate);
 opcodes[ 0x02 ] = ld_to_mem(B,C,A);
-opcodes[ 0x03 ] = inc(BC);
+opcodes[ 0x03 ] = inc16(B,C);
 opcodes[ 0x04 ] = inc(B);
-//opcodes[ 0x05 ] = dec(B);
+opcodes[ 0x05 ] = dec(B);
 opcodes[ 0x06 ] = ld(B, Immediate);
 //opcodes[ 0x07 ] = ;
-//opcodes[ 0x08 ] = ;
+//opcodes[ 0x08 ] = ; //LD   (nn),SP
 //opcodes[ 0x09 ] = ;
 opcodes[ 0x0A ] = ld_from_mem(A, B, C);
-//opcodes[ 0x0B ] = ;
-//opcodes[ 0x0C ] = ;
-//opcodes[ 0x0D ] = ;
+opcodes[ 0x0B ] = dec16(B,C);
+opcodes[ 0x0C ] = inc(C);
+opcodes[ 0x0D ] = dec(C);
 opcodes[ 0x0E ] = ld(C, Immediate);
 //opcodes[ 0x0F ] = ;
 
 
-//opcodes[ 0x10 ] = ;
-opcodes[ 0x11 ] = ld16(D,E,Immediate);;
+//opcodes[ 0x10 ] = ; //STOP
+opcodes[ 0x11 ] = ld16(D,E,Immediate);
 opcodes[ 0x12 ] = ld_to_mem(D,E,A);
-//opcodes[ 0x13 ] = ;
-//opcodes[ 0x14 ] = ;
-//opcodes[ 0x15 ] = ;
+opcodes[ 0x13 ] = inc16(D,E);
+opcodes[ 0x14 ] = inc(D);
+opcodes[ 0x15 ] = dec(D);
 opcodes[ 0x16 ] = ld(D, Immediate);
 //opcodes[ 0x17 ] = ;
 //opcodes[ 0x18 ] = ;
 //opcodes[ 0x19 ] = ;
 opcodes[ 0x1A ] = ld_from_mem(A, D, E);
-//opcodes[ 0x1B ] = ;
-//opcodes[ 0x1C ] = ;
-//opcodes[ 0x1D ] = ;
+opcodes[ 0x1B ] = dec16(D,E);
+opcodes[ 0x1C ] = inc(E);
+opcodes[ 0x1D ] = dec(E);
 opcodes[ 0x1E ] = ld(E, Immediate);
 //opcodes[ 0x1F ] = ;
 
 //opcodes[ 0x20 ] = ;
 opcodes[ 0x21 ] = ld16(H,L,Immediate);
-opcodes[ 0x22 ] = ld16(Immediate, H, L);
-//opcodes[ 0x23 ] = ;
-//opcodes[ 0x24 ] = ;
-//opcodes[ 0x25 ] = ;
+opcodes[ 0x22 ] = ldi(HL,A);
+opcodes[ 0x23 ] = inc16(H,L);
+opcodes[ 0x24 ] = inc(H);
+opcodes[ 0x25 ] = dec(H);
 opcodes[ 0x26 ] = ld(H, Immediate);
 //opcodes[ 0x27 ] = ;
 //opcodes[ 0x28 ] = ;
 //opcodes[ 0x29 ] = ;
-opcodes[ 0x2A ] = ld16(HL,Immediate);
-//opcodes[ 0x2B ] = ;
-//opcodes[ 0x2C ] = ;
-//opcodes[ 0x2D ] = ;
+opcodes[ 0x2A ] = ldi(A,HL);
+opcodes[ 0x2B ] = dec16(H,L);
+opcodes[ 0x2C ] = inc(L);
+opcodes[ 0x2D ] = dec(L);
 opcodes[ 0x2E ] = ld(L, Immediate);
 //opcodes[ 0x2F ] = ;
 
 //opcodes[ 0x30 ] = ;
 opcodes[ 0x31 ] = ld16(SPr, Immediate);
-opcodes[ 0x32 ] = ld_to_mem(Immediate, A);
-//opcodes[ 0x33 ] = ;
-//opcodes[ 0x34 ] = ;
-//opcodes[ 0x35 ] = ;
+opcodes[ 0x32 ] = ldd(HL,A);
+opcodes[ 0x33 ] = inc16(SPr);
+opcodes[ 0x34 ] = inc(HL);
+opcodes[ 0x35 ] = dec(HL);
 opcodes[ 0x36 ] = ld_to_mem(H,L,Immediate);
 //opcodes[ 0x37 ] = ;
 //opcodes[ 0x38 ] = ;
 //opcodes[ 0x39 ] = ;
-opcodes[ 0x3A ] = ld_from_mem(A, Immediate);
-//opcodes[ 0x3B ] = ;
-//opcodes[ 0x3C ] = ;
-//opcodes[ 0x3D ] = ;
+opcodes[ 0x3A ] = ldd(A,HL);
+opcodes[ 0x3B ] = dec16(SPr);
+opcodes[ 0x3C ] = inc(A);
+opcodes[ 0x3D ] = dec(A);
 opcodes[ 0x3E ] = ld(A, Immediate);
 //opcodes[ 0x3F ] = ;
 
@@ -458,13 +544,13 @@ opcodes[ 0xCE ] = ALU(ADC,A,Immediate);
 //opcodes[ 0xD0 ] = ;
 //opcodes[ 0xD1 ] = ;
 //opcodes[ 0xD2 ] = ;
-//opcodes[ 0xD3 ] = ;
+opcodes[ 0xD3 ] = unused;
 //opcodes[ 0xD4 ] = ;
 //opcodes[ 0xD5 ] = ;
 opcodes[ 0xD6 ] = ALU(SUB,A,Immediate);
 //opcodes[ 0xD7 ] = ;
 //opcodes[ 0xD8 ] = ;
-//opcodes[ 0xD9 ] = ;
+//opcodes[ 0xD9 ] = ; //RETI
 //opcodes[ 0xDA ] = ;
 opcodes[ 0xDB ] = unused;
 //opcodes[ 0xDC ] = ;
@@ -518,7 +604,7 @@ opcodes[ 0xFE ] = ALU(CP,A,Immediate);
 
 
 
-testProg = "31 FE FF 3E 2D 47 AF".split(" ")
+testProg = "3E 55 06 0F A0".split(" ")
 for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 
