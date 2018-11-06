@@ -486,41 +486,6 @@ function rst(a){
   }
 }
 
-//function rlca(){
-//  FLAGS.C = (REG[A] &(1<<7) !=0)
-//  REG[A] = REG[A] << 1
-//  FLAGS.N=false
-//  FLAGS.H=false
-//  FLAGS.Z= REG[A]==0
-//  PC++
-//}
-//function rla(){
-//  var c = (REG[A] &(1<<7) !=0)
-//  REG[A] = (REG[A] << 1) + FLAGS.C
-//  FLAGS.C = c
-//  FLAGS.N=false
-//  FLAGS.H=false
-//  FLAGS.Z= REG[A]==0
-//  PC++
-//}
-//function rrca(){
-//  FLAGS.C = (REG[A] &1 !=0)
-//  REG[A] =  (REG[A]&(1<<7)) + (REG[A] >> 1)
-//  FLAGS.N=false
-//  FLAGS.H=false
-//  FLAGS.Z= REG[A]==0
-//  PC++
-//}
-//function rra(){
-//  var c = (REG[A] &1 !=0)
-//  REG[A] = (FLAGS.C<<7) + (REG[A] >>1) 
-//  FLAGS.C = c
-//  FLAGS.N=false
-//  FLAGS.H=false
-//  FLAGS.Z= REG[A]==0
-//  PC++
-//}
-
 const RLC = 1
 const RRC = 2
 const RL  = 3
@@ -582,7 +547,18 @@ function shift_process(op, a){
   return a
 }
 
-
+function ccf(){
+  FLAGS.N =false
+  FLAGS.H =false
+  FLAGS.C =!FLAGS.C
+  PC++
+}
+function scf(){
+  FLAGS.N =false
+  FLAGS.H =false
+  FLAGS.C =true
+  PC++
+}
 
 
 
@@ -615,7 +591,7 @@ opcodes[ 0x15 ] = dec(D);
 opcodes[ 0x16 ] = ld(D, Immediate);
 opcodes[ 0x17 ] = shift(RL, A) 
 opcodes[ 0x18 ] = jr;
-//opcodes[ 0x19 ] = ;
+//opcodes[ 0x19 ] = ; //ADD HL, DE
 opcodes[ 0x1A ] = ld_from_mem(A, D, E);
 opcodes[ 0x1B ] = dec16(D,E);
 opcodes[ 0x1C ] = inc(E);
@@ -630,7 +606,7 @@ opcodes[ 0x23 ] = inc16(H,L);
 opcodes[ 0x24 ] = inc(H);
 opcodes[ 0x25 ] = dec(H);
 opcodes[ 0x26 ] = ld(H, Immediate);
-//opcodes[ 0x27 ] = ;
+//opcodes[ 0x27 ] = ; //DAA
 opcodes[ 0x28 ] = jrZ;
 //opcodes[ 0x29 ] = ;
 opcodes[ 0x2A ] = ldi(A,HL);
@@ -647,7 +623,7 @@ opcodes[ 0x33 ] = inc16(SPr);
 opcodes[ 0x34 ] = inc(HL);
 opcodes[ 0x35 ] = dec(HL);
 opcodes[ 0x36 ] = ld_to_mem(H,L,Immediate);
-//opcodes[ 0x37 ] = ;
+opcodes[ 0x37 ] = scf;
 opcodes[ 0x38 ] = jrC;
 //opcodes[ 0x39 ] = ;
 opcodes[ 0x3A ] = ldd(A,HL);
@@ -655,7 +631,7 @@ opcodes[ 0x3B ] = dec16(SPr);
 opcodes[ 0x3C ] = inc(A);
 opcodes[ 0x3D ] = dec(A);
 opcodes[ 0x3E ] = ld(A, Immediate);
-//opcodes[ 0x3F ] = ;
+opcodes[ 0x3F ] = ccf;
 
 
 opcodes[ 0x40 ] = ld(B,B);
@@ -846,7 +822,7 @@ opcodes[ 0xE6 ] = ALU(AND,A,Immediate);
 opcodes[ 0xE7 ] = rst(0x20);
 //opcodes[ 0xE8 ] = ; //ADD  SP,dd
 opcodes[ 0xE9 ] = jpHL;
-//opcodes[ 0xEA ] = ; //LD   (nn),A
+opcodes[ 0xEA ] = ld_to_mem(Immediate, A); //LD   (nn),A
 opcodes[ 0xEB ] = unused;
 opcodes[ 0xEC ] = unused;
 opcodes[ 0xED ] = unused;
@@ -863,7 +839,7 @@ opcodes[ 0xF6 ] = ALU(OR,A,Immediate);
 opcodes[ 0xF7 ] = rst(0x30);
 //opcodes[ 0xF8 ] = ; //LD   HL,SP+dd
 opcodes[ 0xF9 ] = ld16();
-//opcodes[ 0xFA ] = ; //LD   A,(nn)
+opcodes[ 0xFA ] = ld_from_mem(A, Immediate); //LD   A,(nn)
 opcodes[ 0xFB ] = ei;
 opcodes[ 0xFC ] = unused;
 opcodes[ 0xFD ] = unused;
@@ -1031,9 +1007,9 @@ bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0C 3E
 
 
 //testProg = "3E 55 06 0F A0 D6 01 20 FB 3E 55".split(" ")
-testProg = "3E 55 17 C2 02 00".split(" ")
+//testProg = "3E 55 17 C2 02 00".split(" ")
 
-//testProg = bootCode
+testProg = bootCode
 
 for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
@@ -1045,7 +1021,7 @@ for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 function cpu(){
 
-for (var i=1;i--;)
+for (var i=1000;i--;)
   opcodes[ MEM[ PC ] ]();
 
   debugData();
