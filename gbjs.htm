@@ -44,6 +44,9 @@ const SPr = 260
 const opcodes = Array(256);
 for (var i=0;i<256;i++) opcodes[i]=function(){ throw Error("Undefined Opcode "+i )};
 
+const CBcodes = Array(256);
+for (var i=0;i<256;i++) CBcodes[i]=function(){ throw Error("Undefined 0xCB Opcode "+i )};
+
 
 function ld(a,b){ 
 
@@ -535,7 +538,7 @@ opcodes[ 0xC6 ] = ALU(ADD,A,Immediate);
 //opcodes[ 0xC8 ] = ;
 //opcodes[ 0xC9 ] = ;
 //opcodes[ 0xCA ] = ;
-//opcodes[ 0xCB ] = ;
+opcodes[ 0xCB ] = function(){ CBcodes[ MEM[ ++PC ] ](); }
 //opcodes[ 0xCC ] = ;
 //opcodes[ 0xCD ] = ;
 opcodes[ 0xCE ] = ALU(ADC,A,Immediate);
@@ -595,11 +598,118 @@ opcodes[ 0xFE ] = ALU(CP,A,Immediate);
 
 
 
+
+
+
+
+
 //CB3X //SWAP r/(HL)
 
+function swap(r){
+  if (r==HL) return function(){
+    var a = readMem( (REG[H]<<8)+REG[L] );
+    a = (a>>4) + ((a<<4)&0xFF);
+    writeMem( (REG[H]<<8)+REG[L] , a ); 
+    FLAGS.Z = (a==0)
+    FLAGS.N =false
+    FLAGS.H =false
+    FLAGS.C =false
+    PC++
+  }
+  return function (){
+    REG[r] = (REG[r]>>4) + ((REG[r]<<4)&0xFF)
+    FLAGS.Z = (REG[r]==0)
+    FLAGS.N =false
+    FLAGS.H =false
+    FLAGS.C =false
+    PC++
+  }
+}
 
+CBcodes[ 0x30 ] = swap(B);
+CBcodes[ 0x31 ] = swap(C);
+CBcodes[ 0x32 ] = swap(D);
+CBcodes[ 0x33 ] = swap(E);
+CBcodes[ 0x34 ] = swap(H);
+CBcodes[ 0x35 ] = swap(L);
+CBcodes[ 0x36 ] = swap(HL);
+CBcodes[ 0x37 ] = swap(A);
 
+function bit(b, r) {
+  b = (1<<b);
 
+  if (r==HL) return function(){
+    FLAGS.Z = ((readMem((REG[H]<<8)+REG[L]) & b) == 0)
+    FLAGS.H = true;
+    FLAGS.N = false;
+    PC++
+  }
+  return function(){
+    FLAGS.Z = ((REG[r] & b) == 0)
+    FLAGS.H = true;
+    FLAGS.N = false;
+    PC++
+  }
+}
+function set(b, r) {
+  b = (1<<b);
+
+  if (r==HL) return function(){
+    writeMem(
+      (REG[H]<<8)+REG[L]),
+      readMem((REG[H]<<8)+REG[L]) | b
+    )
+    PC++
+  }
+  return function(){
+    REG[r] |= b
+    PC++
+  }
+}
+function res(b, r) {
+  b = ~(1<<b);
+
+  if (r==HL) return function(){
+    writeMem(
+      (REG[H]<<8)+REG[L]),
+      readMem((REG[H]<<8)+REG[L]) & b
+    )
+    PC++
+  }
+  return function(){
+    REG[r] &= b
+    PC++
+  }
+}
+
+for (var i=0;i++;i<8){
+  CBcodes[ 0x40 + i*8 ] = bit(i, B);
+  CBcodes[ 0x41 + i*8 ] = bit(i, C);
+  CBcodes[ 0x42 + i*8 ] = bit(i, D);
+  CBcodes[ 0x43 + i*8 ] = bit(i, E);
+  CBcodes[ 0x44 + i*8 ] = bit(i, H);
+  CBcodes[ 0x45 + i*8 ] = bit(i, L);
+  CBcodes[ 0x46 + i*8 ] = bit(i, HL);
+  CBcodes[ 0x47 + i*8 ] = bit(i, A);
+
+  CBcodes[ 0x80 + i*8 ] = res(i, B);
+  CBcodes[ 0x81 + i*8 ] = res(i, C);
+  CBcodes[ 0x82 + i*8 ] = res(i, D);
+  CBcodes[ 0x83 + i*8 ] = res(i, E);
+  CBcodes[ 0x84 + i*8 ] = res(i, H);
+  CBcodes[ 0x85 + i*8 ] = res(i, L);
+  CBcodes[ 0x86 + i*8 ] = res(i, HL);
+  CBcodes[ 0x87 + i*8 ] = res(i, A);
+
+  CBcodes[ 0xC0 + i*8 ] = set(i, B);
+  CBcodes[ 0xC1 + i*8 ] = set(i, C);
+  CBcodes[ 0xC2 + i*8 ] = set(i, D);
+  CBcodes[ 0xC3 + i*8 ] = set(i, E);
+  CBcodes[ 0xC4 + i*8 ] = set(i, H);
+  CBcodes[ 0xC5 + i*8 ] = set(i, L);
+  CBcodes[ 0xC6 + i*8 ] = set(i, HL);
+  CBcodes[ 0xC7 + i*8 ] = set(i, A);
+}
 
 
 
