@@ -1,0 +1,293 @@
+<!doctype html><meta charset=utf-8>
+
+<script>
+
+
+MEM = new Uint8Array(65536);
+
+function readMem(addr){return MEM[addr];}
+function writeMem(addr, data){ MEM[addr] = data;}
+
+REG = new Uint8Array(8);
+
+
+PC = 0
+
+SP = 0
+
+
+
+const A = 0b111
+const B = 0b000
+const C = 0b001
+const D = 0b010
+const E = 0b011
+const H = 0b100
+const L = 0b101
+
+const HL = 0b110
+
+const Immediate = 99
+
+const opcodes = [];
+
+
+
+opcodes[255] = function(){ throw Error("Undefined Opcode")}
+for (var i of opcodes) i=opcodes[255];
+
+
+function ld(a,b){ 
+
+  if (a==HL) return function(){
+    writeMem( (REG[H]<<8)+REG[L] , REG[b] );
+    PC++
+  } 
+
+  if (b==HL) return function(){
+    REG[a] = readMem( (REG[H]<<8)+REG[L] );
+    PC++
+  } 
+
+  return function(){
+    REG[a] = REG[b];
+    PC++
+  }
+}
+
+
+function add(a,b){
+
+
+  if (a !== A) {
+  //16 bit add
+  }
+
+
+
+  if (b == Immediate) return function(){
+
+    REG[A] += MEM[ PC+1 ]
+    // TODO: status flags
+
+    PC+=2
+  }
+
+  if (b == HL) return function(){
+
+    REG[A] += readMem( (REG[H]<<8)+REG[L] );
+    // TODO: status flags
+    PC++
+  }
+
+
+  return function(){
+
+    REG[A] += REG[b];
+    // TODO: status flags
+    PC++
+  }
+  
+
+
+}
+
+function adc(a,b){
+  if (b == HL) return function(){
+    REG[A] += readMem( (REG[H]<<8)+REG[L] ); //+carry
+    // TODO: status flags
+    PC++
+  }
+  if (b == Immediate) return function(){
+    REG[A] += MEM[ PC+1 ] //+carry
+    // TODO: status flags
+    PC+=2
+  }
+  return function(){
+
+    REG[A] += REG[b]; // + carry
+    // TODO: status flags
+    PC++
+  }
+}
+
+function sub(b) {
+  if (b == Immediate) return function(){
+    REG[A] -= MEM[ PC+1 ]; 
+    // TODO: status flags
+
+    PC+=2
+  }
+  if (b == HL) return function(){
+    REG[A] -= readMem( (REG[H]<<8)+REG[L] );
+    // TODO: status flags
+    PC++
+  }
+  return function(){
+    REG[A] -= REG[b]; 
+    // TODO: status flags
+    PC++
+  }
+}
+
+function sbc(a, b) {
+  if (b == Immediate) return function(){
+    REG[A] -= MEM[ PC+1 ]; //-carry
+    // TODO: status flags
+
+    PC+=2
+  }
+  return function(){
+    REG[A] -= REG[b]; // - carry
+    // TODO: status flags
+    PC++
+  }
+}
+
+opcodes[ 0x00 ] = function nop(){ PC++ };
+
+opcodes[ 0x40 ] = ld(B,B);
+opcodes[ 0x41 ] = ld(B,C);
+opcodes[ 0x42 ] = ld(B,D);
+opcodes[ 0x43 ] = ld(B,E);
+opcodes[ 0x44 ] = ld(B,H);
+opcodes[ 0x45 ] = ld(B,L);
+opcodes[ 0x46 ] = ld(B, HL );
+opcodes[ 0x47 ] = ld(B,A);
+
+opcodes[ 0x48 ] = ld(C,B);
+opcodes[ 0x49 ] = ld(C,C);
+opcodes[ 0x4A ] = ld(C,D);
+opcodes[ 0x4B ] = ld(C,E);
+opcodes[ 0x4C ] = ld(C,H);
+opcodes[ 0x4D ] = ld(C,L);
+opcodes[ 0x4E ] = ld(C, HL );
+opcodes[ 0x4F ] = ld(C,A);
+
+opcodes[ 0x50 ] = ld(D,B);
+opcodes[ 0x51 ] = ld(D,C);
+opcodes[ 0x52 ] = ld(D,D);
+opcodes[ 0x53 ] = ld(D,E);
+opcodes[ 0x54 ] = ld(D,H);
+opcodes[ 0x55 ] = ld(D,L);
+opcodes[ 0x56 ] = ld(D, HL );
+opcodes[ 0x57 ] = ld(D,A);
+
+opcodes[ 0x58 ] = ld(E,B);
+opcodes[ 0x59 ] = ld(E,C);
+opcodes[ 0x5A ] = ld(E,D);
+opcodes[ 0x5B ] = ld(E,E);
+opcodes[ 0x5C ] = ld(E,H);
+opcodes[ 0x5D ] = ld(E,L);
+opcodes[ 0x5E ] = ld(E, HL );
+opcodes[ 0x5F ] = ld(E,A);
+
+opcodes[ 0x60 ] = ld(H,B);
+opcodes[ 0x61 ] = ld(H,C);
+opcodes[ 0x62 ] = ld(H,D);
+opcodes[ 0x63 ] = ld(H,E);
+opcodes[ 0x64 ] = ld(H,H);
+opcodes[ 0x65 ] = ld(H,L);
+opcodes[ 0x66 ] = ld(H, HL );
+opcodes[ 0x67 ] = ld(H,A);
+
+opcodes[ 0x68 ] = ld(L,B);
+opcodes[ 0x69 ] = ld(L,C);
+opcodes[ 0x6A ] = ld(L,D);
+opcodes[ 0x6B ] = ld(L,E);
+opcodes[ 0x6C ] = ld(L,H);
+opcodes[ 0x6D ] = ld(L,L);
+opcodes[ 0x6E ] = ld(L, HL );
+opcodes[ 0x6F ] = ld(L,A);
+
+opcodes[ 0x70 ] = ld(HL, B);
+opcodes[ 0x71 ] = ld(HL, C);
+opcodes[ 0x72 ] = ld(HL, D);
+opcodes[ 0x73 ] = ld(HL, E);
+opcodes[ 0x74 ] = ld(HL, H);
+opcodes[ 0x75 ] = ld(HL, L);
+opcodes[ 0x76 ] = function halt() {};
+opcodes[ 0x77 ] = ld(HL, A);
+
+opcodes[ 0x78 ] = ld(A,B);
+opcodes[ 0x79 ] = ld(A,C);
+opcodes[ 0x7A ] = ld(A,D);
+opcodes[ 0x7B ] = ld(A,E);
+opcodes[ 0x7C ] = ld(A,H);
+opcodes[ 0x7D ] = ld(A,L);
+opcodes[ 0x7E ] = ld(A, HL );
+opcodes[ 0x7F ] = ld(A,A);
+
+opcodes[ 0x80 ] = add(A,B);
+opcodes[ 0x81 ] = add(A,C);
+opcodes[ 0x82 ] = add(A,D);
+opcodes[ 0x83 ] = add(A,E);
+opcodes[ 0x84 ] = add(A,H);
+opcodes[ 0x85 ] = add(A,L);
+opcodes[ 0x86 ] = add(A, HL );
+opcodes[ 0x87 ] = add(A,A);
+
+opcodes[ 0x88 ] = adc(A,B);
+opcodes[ 0x89 ] = adc(A,C);
+opcodes[ 0x8A ] = adc(A,D);
+opcodes[ 0x8B ] = adc(A,E);
+opcodes[ 0x8C ] = adc(A,H);
+opcodes[ 0x8D ] = adc(A,L);
+opcodes[ 0x8E ] = adc(A, HL );
+opcodes[ 0x8F ] = adc(A,A);
+
+opcodes[ 0x90 ] = sub(B);
+opcodes[ 0x91 ] = sub(C);
+opcodes[ 0x92 ] = sub(D);
+opcodes[ 0x93 ] = sub(E);
+opcodes[ 0x94 ] = sub(H);
+opcodes[ 0x95 ] = sub(L);
+opcodes[ 0x96 ] = sub( HL );
+opcodes[ 0x97 ] = sub(A);
+
+opcodes[ 0x98 ] = sbc(B);
+opcodes[ 0x99 ] = sbc(C);
+opcodes[ 0x9A ] = sbc(D);
+opcodes[ 0x9B ] = sbc(E);
+opcodes[ 0x9C ] = sbc(H);
+opcodes[ 0x9D ] = sbc(L);
+opcodes[ 0x9E ] = sbc( HL );
+opcodes[ 0x9F ] = sbc(A);
+
+opcodes[ 0xC6 ] = add(A,Immediate);
+opcodes[ 0xCE ] = adc(A,Immediate);
+
+opcodes[ 0xD6 ] = sub(Immediate);
+opcodes[ 0xDE ] = sbc(Immediate);
+
+opcodes[ 0xE6 ] = and(Immediate);
+opcodes[ 0xF6 ] =  or(Immediate);
+
+
+
+
+
+
+function cpu(){
+
+  opcodes[ MEM[ PC ] ]();
+
+  
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</script>
