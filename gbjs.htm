@@ -11,12 +11,12 @@ function writeMem(addr, data){ MEM[addr] = data;}
 const REG = new Uint8Array(8);
 
 const FLAGS = {
-  C:0,
-  N:0,
-  PV:0,
-  H:0,
-  Z:0,
-  S:0
+  Z:false,
+  N:false,
+  H:false,
+  C:false
+//  PV:false
+//  S:false
 }
 
 var PC = 0
@@ -90,22 +90,38 @@ const ADD = 1
 const ADC = 2
 const SUB = 3
 const SBC = 4
+const AND = 5
+const OR  = 6
+const XOR = 7
+const CP  = 8
+//const INC = 9
+//const DEC = 10
 
 function ALU_process_8bit(op, b){
 
   var result = REG[A];
+  FLAGS.N = false; // does any ALU operation leave this unchanged?
+
   switch (op){
     case ADD: result += b; break;
     case ADC: result += b + FLAGS.C; break;
-    case SUB: result -= b; break;
-    case SBC: result -= b - FLAGS.C; break;
+    case SUB: 
+      result -= b;
+      FLAGS.N = true;
+    break;
+    case SBC:
+      result -= b + FLAGS.C;
+      FLAGS.N = true;
+    break;
+    case AND: break;
 
   }
 
-  FLAGS.S = (result & (1<<7) !=0)
+  // Gameboy only has four flags: Z, N, H, C
+  //FLAGS.S = (result & (1<<7) !=0)
   FLAGS.Z = (result == 0)
   FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
-  FLAGS.PV = 
+
   FLAGS.C = result > 255 || result < 0;
 
 
@@ -243,7 +259,7 @@ opcodes[ 0x72 ] = ld(HL, D);
 opcodes[ 0x73 ] = ld(HL, E);
 opcodes[ 0x74 ] = ld(HL, H);
 opcodes[ 0x75 ] = ld(HL, L);
-opcodes[ 0x76 ] = function halt() {};
+opcodes[ 0x76 ] = function halt() {}; // if interrupts disabled, stall 1 cycle, skip next instruction and continue
 opcodes[ 0x77 ] = ld(HL, A);
 
 opcodes[ 0x78 ] = ld(A,B);
@@ -291,39 +307,41 @@ opcodes[ 0x9D ] = ALU(SBC,A,L);
 opcodes[ 0x9E ] = ALU(SBC,A, HL );
 opcodes[ 0x9F ] = ALU(SBC,A,A);
 
-opcodes[ 0xA0 ] = ;
-opcodes[ 0xA1 ] = ;
-opcodes[ 0xA2 ] = ;
-opcodes[ 0xA3 ] = ;
-opcodes[ 0xA4 ] = ;
-opcodes[ 0xA5 ] = ;
-opcodes[ 0xA6 ] = ;
-opcodes[ 0xA7 ] = ;
-opcodes[ 0xA8 ] = ;
-opcodes[ 0xA9 ] = ;
-opcodes[ 0xAA ] = ;
-opcodes[ 0xAB ] = ;
-opcodes[ 0xAC ] = ;
-opcodes[ 0xAD ] = ;
-opcodes[ 0xAE ] = ;
-opcodes[ 0xAF ] = ;
+opcodes[ 0xA0 ] = ALU(AND,A,B);
+opcodes[ 0xA1 ] = ALU(AND,A,C);
+opcodes[ 0xA2 ] = ALU(AND,A,D);
+opcodes[ 0xA3 ] = ALU(AND,A,E);
+opcodes[ 0xA4 ] = ALU(AND,A,H);
+opcodes[ 0xA5 ] = ALU(AND,A,L);
+opcodes[ 0xA6 ] = ALU(AND,A, HL );
+opcodes[ 0xA7 ] = ALU(AND,A,A);
 
-opcodes[ 0xB0 ] = ;
-opcodes[ 0xB1 ] = ;
-opcodes[ 0xB2 ] = ;
-opcodes[ 0xB3 ] = ;
-opcodes[ 0xB4 ] = ;
-opcodes[ 0xB5 ] = ;
-opcodes[ 0xB6 ] = ;
-opcodes[ 0xB7 ] = ;
-opcodes[ 0xB8 ] = ;
-opcodes[ 0xB9 ] = ;
-opcodes[ 0xBA ] = ;
-opcodes[ 0xBB ] = ;
-opcodes[ 0xBC ] = ;
-opcodes[ 0xBD ] = ;
-opcodes[ 0xBE ] = ;
-opcodes[ 0xBF ] = ;
+opcodes[ 0xA8 ] = ALU(XOR,A,B);
+opcodes[ 0xA9 ] = ALU(XOR,A,C);
+opcodes[ 0xAA ] = ALU(XOR,A,D);
+opcodes[ 0xAB ] = ALU(XOR,A,E);
+opcodes[ 0xAC ] = ALU(XOR,A,H);
+opcodes[ 0xAD ] = ALU(XOR,A,L);
+opcodes[ 0xAE ] = ALU(XOR,A, HL );
+opcodes[ 0xAF ] = ALU(XOR,A,A);
+
+opcodes[ 0xB0 ] = ALU(OR,A,B);
+opcodes[ 0xB1 ] = ALU(OR,A,C);
+opcodes[ 0xB2 ] = ALU(OR,A,D);
+opcodes[ 0xB3 ] = ALU(OR,A,E);
+opcodes[ 0xB4 ] = ALU(OR,A,H);
+opcodes[ 0xB5 ] = ALU(OR,A,L);
+opcodes[ 0xB6 ] = ALU(OR,A, HL );
+opcodes[ 0xB7 ] = ALU(OR,A,A);
+
+opcodes[ 0xB8 ] = ALU(CP,A,B);
+opcodes[ 0xB9 ] = ALU(CP,A,C);
+opcodes[ 0xBA ] = ALU(CP,A,D);
+opcodes[ 0xBB ] = ALU(CP,A,E);
+opcodes[ 0xBC ] = ALU(CP,A,H);
+opcodes[ 0xBD ] = ALU(CP,A,L);
+opcodes[ 0xBE ] = ALU(CP,A, HL );
+opcodes[ 0xBF ] = ALU(CP,A,A);
 
 opcodes[ 0xC0 ] = ;
 opcodes[ 0xC1 ] = ;
