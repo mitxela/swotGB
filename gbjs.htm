@@ -7,6 +7,7 @@ const MEM = new Uint8Array(65536);
 
 function readMem(addr){return MEM[addr];}
 function writeMem(addr, data){ MEM[addr] = data;}
+function writeMem16(addr, dataH, dataL){ MEM[addr] = dataL; MEM[addr+1] = dataH;}
 
 const REG = new Uint8Array(8);
 
@@ -36,6 +37,7 @@ const HL = 0b110
 const Immediate = 257
 const BC = 258
 const DE = 259
+const SPr = 260
 
 const opcodes = Array(256);
 for (var i=0;i<256;i++) opcodes[i]=function(){ throw Error("Undefined Opcode "+i )};
@@ -76,6 +78,47 @@ function ld_to_mem(a, b, c){
   }
   return function(){
     writeMem( (REG[a]<<8)+REG[b] , REG[c] );
+    PC++
+  }
+}
+
+// Messy...
+function ld16(a,b,c){
+  if (a ==)
+  
+  if (a==Immediate) return function(){
+    // HL into mem
+    writeMem16( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8), REG[H], REG[L] )
+    PC+=3
+  }
+  if (b==Immediate) {
+
+    if (a==HL) return function(){
+      // mem to hl
+      REG[L] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ])
+      REG[H] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ] + 1)
+
+      PC+=3
+    }
+
+    // immediate into SP... 
+    return function(){
+      SP = MEM[ PC+1 ] + (MEM[ PC+2 ] <<8)
+      PC+=3
+    }
+
+  }
+  if (c==Immediate) return function(){
+    
+    REG[a] = MEM[ PC+2 ]
+    REG[b] = MEM[ PC+1 ]
+
+    PC+=3
+  }
+
+  // ld sp, hl
+  return function(){
+    SP = (REG[H]<<8) + REG[L]
     PC++
   }
 }
@@ -180,7 +223,7 @@ function inc(r) {
 const unused = function(){}; //GMB locks when called
 
 opcodes[ 0x00 ] = function nop(){ PC++ };
-opcodes[ 0x01 ] = ;
+opcodes[ 0x01 ] = ld16(B,C,Immediate);
 opcodes[ 0x02 ] = ld_to_mem(B,C,A);
 opcodes[ 0x03 ] = inc(BC);
 opcodes[ 0x04 ] = inc(B);
@@ -198,7 +241,7 @@ opcodes[ 0x0F ] = ;
 
 
 opcodes[ 0x10 ] = ;
-opcodes[ 0x11 ] = ;
+opcodes[ 0x11 ] = ld16(D,E,Immediate);;
 opcodes[ 0x12 ] = ld_to_mem(D,E,A);
 opcodes[ 0x13 ] = ;
 opcodes[ 0x14 ] = ;
@@ -215,8 +258,8 @@ opcodes[ 0x1E ] = ld(E, Immediate);
 opcodes[ 0x1F ] = ;
 
 opcodes[ 0x20 ] = ;
-opcodes[ 0x21 ] = ;
-opcodes[ 0x22 ] = ;
+opcodes[ 0x21 ] = ld16(H,L,Immediate);
+opcodes[ 0x22 ] = ld16(Immediate, H, L);
 opcodes[ 0x23 ] = ;
 opcodes[ 0x24 ] = ;
 opcodes[ 0x25 ] = ;
@@ -224,7 +267,7 @@ opcodes[ 0x26 ] = ld(H, Immediate);
 opcodes[ 0x27 ] = ;
 opcodes[ 0x28 ] = ;
 opcodes[ 0x29 ] = ;
-opcodes[ 0x2A ] = ;
+opcodes[ 0x2A ] = ld16(HL,Immediate);
 opcodes[ 0x2B ] = ;
 opcodes[ 0x2C ] = ;
 opcodes[ 0x2D ] = ;
@@ -232,7 +275,7 @@ opcodes[ 0x2E ] = ld(L, Immediate);
 opcodes[ 0x2F ] = ;
 
 opcodes[ 0x30 ] = ;
-opcodes[ 0x31 ] = ;
+opcodes[ 0x31 ] = ld16(SPr, Immediate);
 opcodes[ 0x32 ] = ld_to_mem(Immediate, A);
 opcodes[ 0x33 ] = ;
 opcodes[ 0x34 ] = ;
@@ -453,7 +496,7 @@ opcodes[ 0xEE ] = ALU(XOR,A,Immediate);
 opcodes[ 0xF6 ] = ALU(OR,A,Immediate);
 //opcodes[ 0xF7 ] = ;
 //opcodes[ 0xF8 ] = ; //LD   HL,SP+dd
-//opcodes[ 0xF9 ] = ;
+opcodes[ 0xF9 ] = ld16();
 //opcodes[ 0xFA ] = ; //LD   A,(nn)
 //opcodes[ 0xFB ] = ;
 //opcodes[ 0xFC ] = unused;
