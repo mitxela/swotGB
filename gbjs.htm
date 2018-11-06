@@ -8,6 +8,7 @@
 const MEM = new Uint8Array(65536);
 
 function readMem(addr){return MEM[addr];}
+function readMem16(addr){return [MEM[addr+1],MEM[addr]]}
 function writeMem(addr, data){ MEM[addr] = data;}
 function writeMem16(addr, dataH, dataL){ MEM[addr] = dataL; MEM[addr+1] = dataH;}
 
@@ -23,6 +24,8 @@ const FLAGS = {
 var PC = 0
 
 var SP = 0
+
+var EnableInterrupts = false
 
 
 
@@ -361,20 +364,126 @@ function jp(){ //unconditional absolute
   PC = MEM[PC+1]+(MEM[PC+2]<<8)
 }
 function jpNZ(){
-  if (FLAGS.Z) PC+=2
+  if (FLAGS.Z) PC+=3
   else PC = MEM[PC+1]+(MEM[PC+2]<<8)
 }
 function jpNC(){
-  if (FLAGS.C) PC+=2
+  if (FLAGS.C) PC+=3
   else PC = MEM[PC+1]+(MEM[PC+2]<<8)
 }
 function jpZ(){
   if (FLAGS.Z) PC = MEM[PC+1]+(MEM[PC+2]<<8)
-  else PC+=2
+  else PC+=3
 }
 function jpC(){
   if (FLAGS.C) PC = MEM[PC+1]+(MEM[PC+2]<<8)
-  else PC+=2
+  else PC+=3
+}
+
+function jpHL(){
+  PC = (REG[H]<<8)+REG[L]
+}
+
+function push(a,b) {
+  if (a==A) return function(){
+    var flags = (FLAGS.Z << 7) + (FLAGS.N << 6) + (FLAGS.H << 5) + (FLAGS.C << 4)
+    SP -=2
+    writeMem16(SP, REG[A], flags)
+    PC++
+  }
+  return function(){
+    SP-=2
+    writeMem16(SP, REG[a], REG[b])
+    PC++
+  }
+}
+
+function pop(a,b) {
+  if (a==A) return function(){
+    var s = readMem16(SP);
+    REG[A] = s[0]
+    FLAGS.Z = s[1] & (1<<7) == 1
+    FLAGS.N = s[1] & (1<<6) == 1
+    FLAGS.H = s[1] & (1<<5) == 1
+    FLAGS.C = s[1] & (1<<4) == 1
+    SP+=2
+    PC++
+  }
+  return function(){
+    var s = readMem16(SP);
+    REG[a] = s[0]
+    REG[b] = s[1]
+    SP+=2
+    PC++
+  }
+}
+
+function call(){
+  SP -=2
+  var npc = PC+3
+  writeMem16(SP, npc>>8, npc&0xFF)
+  PC = MEM[PC+1]+(MEM[PC+2]<<8)
+}
+function callNZ(){
+  if (FLAGS.Z) PC+=3
+  else call()
+}
+function callNC(){
+  if (FLAGS.C) PC+=3
+  else call()
+}
+function callZ(){
+  if (FLAGS.Z) call()
+  else PC+=3
+}
+function callC(){
+  if (FLAGS.C) call()
+  else PC+=3
+}
+
+function ret(){
+  var s = readMem16(SP);
+  SP+=2
+  PC = (s[0]<<8)+s[1]
+}
+function retNZ(){
+  if (FLAGS.Z) PC++
+  else ret()
+}
+function retNC(){
+  if (FLAGS.C) PC++
+  else ret()
+}
+function retZ(){
+  if (FLAGS.Z) ret()
+  else PC++
+}
+function retC(){
+  if (FLAGS.C) ret()
+  else PC++
+}
+function reti(){
+  ret()
+  EnableInterrupts = true
+}
+
+function ei(){
+  EnableInterrupts = true
+  PC++
+}
+
+function di(){
+  EnableInterrupts = false
+  PC++
+}
+
+function rst(a){
+  return function(){
+    SP -=2
+    var npc = PC+1 // datasheets say to push the current program counter, but surely it means the return address
+    writeMem16(SP, npc>>8, npc&0xFF)
+    PC = a
+  }
 }
 
 
@@ -594,73 +703,73 @@ opcodes[ 0xBD ] = ALU(CP,A,L);
 opcodes[ 0xBE ] = ALU(CP,A, HL );
 opcodes[ 0xBF ] = ALU(CP,A,A);
 
-//opcodes[ 0xC0 ] = ;
-//opcodes[ 0xC1 ] = ;
+opcodes[ 0xC0 ] = retNZ;
+opcodes[ 0xC1 ] = pop(B,C);
 opcodes[ 0xC2 ] = jpNZ;
 opcodes[ 0xC3 ] = jp;
-//opcodes[ 0xC4 ] = ;
-//opcodes[ 0xC5 ] = ;
+opcodes[ 0xC4 ] = callNZ;
+opcodes[ 0xC5 ] = push(B,C);
 opcodes[ 0xC6 ] = ALU(ADD,A,Immediate);
-//opcodes[ 0xC7 ] = ;
-//opcodes[ 0xC8 ] = ;
-//opcodes[ 0xC9 ] = ;
+opcodes[ 0xC7 ] = rst(0x00);
+opcodes[ 0xC8 ] = retZ;
+opcodes[ 0xC9 ] = ret;
 opcodes[ 0xCA ] = jpZ;
 opcodes[ 0xCB ] = function(){ CBcodes[ MEM[ ++PC ] ](); }
-//opcodes[ 0xCC ] = ;
-//opcodes[ 0xCD ] = ;
+opcodes[ 0xCC ] = callZ;
+opcodes[ 0xCD ] = call;
 opcodes[ 0xCE ] = ALU(ADC,A,Immediate);
-//opcodes[ 0xCF ] = ;
+opcodes[ 0xCF ] = rst(0x08);
 
-//opcodes[ 0xD0 ] = ;
-//opcodes[ 0xD1 ] = ;
+opcodes[ 0xD0 ] = retNC;
+opcodes[ 0xD1 ] = pop(D,E);
 opcodes[ 0xD2 ] = jpNC;
 opcodes[ 0xD3 ] = unused;
-//opcodes[ 0xD4 ] = ;
-//opcodes[ 0xD5 ] = ;
+opcodes[ 0xD4 ] = callNC;
+opcodes[ 0xD5 ] = push(D,E);
 opcodes[ 0xD6 ] = ALU(SUB,A,Immediate);
-//opcodes[ 0xD7 ] = ;
-//opcodes[ 0xD8 ] = ;
-//opcodes[ 0xD9 ] = ; //RETI
+opcodes[ 0xD7 ] = rst(0x10);
+opcodes[ 0xD8 ] = retC;
+opcodes[ 0xD9 ] = reti; //RETI
 opcodes[ 0xDA ] = jpC;
 opcodes[ 0xDB ] = unused;
-//opcodes[ 0xDC ] = ;
+opcodes[ 0xDC ] = callC;
 opcodes[ 0xDD ] = unused;
 opcodes[ 0xDE ] = ALU(SBC,A,Immediate);
-//opcodes[ 0xDF ] = ;
+opcodes[ 0xDF ] = rst(0x18);
 
 opcodes[ 0xE0 ] = ldh(Immediate, A); //LD   (FF00+n),A
-//opcodes[ 0xE1 ] = ;
+opcodes[ 0xE1 ] = pop(H,L);
 opcodes[ 0xE2 ] = ldc(C, A); //LD   (FF00+C),A
 opcodes[ 0xE3 ] = unused;
 opcodes[ 0xE4 ] = unused;
-//opcodes[ 0xE5 ] = ;
+opcodes[ 0xE5 ] = push(H,L);
 opcodes[ 0xE6 ] = ALU(AND,A,Immediate);
-//opcodes[ 0xE7 ] = ;
+opcodes[ 0xE7 ] = rst(0x20);
 //opcodes[ 0xE8 ] = ; //ADD  SP,dd
-//opcodes[ 0xE9 ] = ; //LD   (nn),A
-//opcodes[ 0xEA ] = ;
+opcodes[ 0xE9 ] = jpHL;
+//opcodes[ 0xEA ] = ; //LD   (nn),A
 opcodes[ 0xEB ] = unused;
 opcodes[ 0xEC ] = unused;
 opcodes[ 0xED ] = unused;
 opcodes[ 0xEE ] = ALU(XOR,A,Immediate);
-//opcodes[ 0xEF ] = ;
+opcodes[ 0xEF ] = rst(0x28);
 
 opcodes[ 0xF0 ] = ldh(A, Immediate); //LD   A,(FF00+n)
-//opcodes[ 0xF1 ] = ;
+opcodes[ 0xF1 ] = pop(A,FLAGS);
 opcodes[ 0xF2 ] =  ldc(A, C); //LD   A,(FF00+C)
-//opcodes[ 0xF3 ] = ;
+opcodes[ 0xF3 ] = di;
 opcodes[ 0xF4 ] = unused;
-//opcodes[ 0xF5 ] = ;
+opcodes[ 0xF5 ] = push(A, FLAGS);
 opcodes[ 0xF6 ] = ALU(OR,A,Immediate);
-//opcodes[ 0xF7 ] = ;
+opcodes[ 0xF7 ] = rst(0x30);
 //opcodes[ 0xF8 ] = ; //LD   HL,SP+dd
 opcodes[ 0xF9 ] = ld16();
 //opcodes[ 0xFA ] = ; //LD   A,(nn)
-//opcodes[ 0xFB ] = ;
+opcodes[ 0xFB ] = ei;
 opcodes[ 0xFC ] = unused;
 opcodes[ 0xFD ] = unused;
 opcodes[ 0xFE ] = ALU(CP,A,Immediate);
-//opcodes[ 0xFF ] = ;
+opcodes[ 0xFF ] = rst(0x38);
 
 
 
@@ -833,6 +942,7 @@ for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 function cpu(){
 
+for (var i=1000;i--;)
   opcodes[ MEM[ PC ] ]();
 
   debugData();
