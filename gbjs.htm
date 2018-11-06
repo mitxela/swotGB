@@ -15,8 +15,6 @@ const FLAGS = {
   N:false,
   H:false,
   C:false
-//  PV:false
-//  S:false
 }
 
 var PC = 0
@@ -35,7 +33,9 @@ const L = 0b101
 
 const HL = 0b110
 
-const Immediate = 99
+const Immediate = 257
+const BC = 258
+const DE = 259
 
 const opcodes = Array(256);
 for (var i=0;i<256;i++) opcodes[i]=function(){ throw Error("Undefined Opcode "+i )};
@@ -43,24 +43,42 @@ for (var i=0;i<256;i++) opcodes[i]=function(){ throw Error("Undefined Opcode "+i
 
 function ld(a,b){ 
 
-  if (a==HL) return function(){
-    writeMem( (REG[H]<<8)+REG[L] , REG[b] );
-    PC++
-  } 
-
-  if (b==HL) return function(){
-    REG[a] = readMem( (REG[H]<<8)+REG[L] );
-    PC++
-  } 
+  if (b==Immediate) return function(){
+    REG[a] = MEM[ PC+1 ];
+    PC+=2
+  }
 
   return function(){
     REG[a] = REG[b];
     PC++
   }
 }
+function ld_from_mem(a, b, c){
+  if (b==Immediate) return function(){
+    REG[a] = readMem( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8) )
+    PC+=3
+  }
 
+  return function(){
+    REG[a] = readMem( (REG[b]<<8)+REG[c] );
+    PC++
+  }
+}
 
-
+function ld_to_mem(a, b, c){
+  if (a==Immediate) return function(){
+    writeMem( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8), REG[b] )
+    PC+=3
+  }
+  if (c==Immediate) return function(){
+    writeMem( (REG[a]<<8)+REG[b] , MEM[PC+1] );
+    PC+=2
+  }
+  return function(){
+    writeMem( (REG[a]<<8)+REG[b] , REG[c] );
+    PC++
+  }
+}
 
 function ALU(op, a, b){
 
@@ -96,72 +114,104 @@ const XOR = 7
 const CP  = 8
 //const INC = 9
 //const DEC = 10
+// daa
+// cpl
 
 function ALU_process_8bit(op, b){
 
   var result = REG[A];
-  FLAGS.N = false; // does any ALU operation leave this unchanged?
+  FLAGS.N = false; // does any ALU operation leave this unchanged? daa
 
   switch (op){
-    case ADD: result += b; break;
-    case ADC: result += b + FLAGS.C; break;
+    case ADD: 
+      result += b;
+      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
+    break;
+    case ADC:
+      result += b + FLAGS.C;
+      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
+    break;
     case SUB: 
       result -= b;
       FLAGS.N = true;
+      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
     break;
+
+    case CP:
+      result -= b;
+      FLAGS.N = true;
+      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
+      FLAGS.Z = (result == 0)
+      FLAGS.C = result > 255 || result < 0;
+    return REG[A];
+
     case SBC:
       result -= b + FLAGS.C;
       FLAGS.N = true;
+      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
     break;
-    case AND: break;
+    case AND:
+      result &= b;
+      FLAGS.H = true
+    break;
+    case OR:
+      result |= b;
+      FLAGS.H = false
+    break;
+    case XOR: 
+      result ^= b;
+      FLAGS.H = false
+    break;
 
   }
 
-  // Gameboy only has four flags: Z, N, H, C
-  //FLAGS.S = (result & (1<<7) !=0)
   FLAGS.Z = (result == 0)
-  FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
-
   FLAGS.C = result > 255 || result < 0;
-
 
   return result&0xFF;
 }
 
+function inc(r) {
+  
+}
+
+
+
+const unused = function(){}; //GMB locks when called
 
 opcodes[ 0x00 ] = function nop(){ PC++ };
-
 opcodes[ 0x01 ] = ;
-opcodes[ 0x02 ] = ;
-opcodes[ 0x03 ] = ;
-opcodes[ 0x04 ] = ;
-opcodes[ 0x05 ] = ;
-opcodes[ 0x06 ] = ;
+opcodes[ 0x02 ] = ld_to_mem(B,C,A);
+opcodes[ 0x03 ] = inc(BC);
+opcodes[ 0x04 ] = inc(B);
+opcodes[ 0x05 ] = dec(B);
+opcodes[ 0x06 ] = ld(B, Immediate);
 opcodes[ 0x07 ] = ;
 opcodes[ 0x08 ] = ;
 opcodes[ 0x09 ] = ;
-opcodes[ 0x0A ] = ;
+opcodes[ 0x0A ] = ld_from_mem(A, B, C);
 opcodes[ 0x0B ] = ;
 opcodes[ 0x0C ] = ;
 opcodes[ 0x0D ] = ;
-opcodes[ 0x0E ] = ;
+opcodes[ 0x0E ] = ld(C, Immediate);
 opcodes[ 0x0F ] = ;
+
 
 opcodes[ 0x10 ] = ;
 opcodes[ 0x11 ] = ;
-opcodes[ 0x12 ] = ;
+opcodes[ 0x12 ] = ld_to_mem(D,E,A);
 opcodes[ 0x13 ] = ;
 opcodes[ 0x14 ] = ;
 opcodes[ 0x15 ] = ;
-opcodes[ 0x16 ] = ;
+opcodes[ 0x16 ] = ld(D, Immediate);
 opcodes[ 0x17 ] = ;
 opcodes[ 0x18 ] = ;
 opcodes[ 0x19 ] = ;
-opcodes[ 0x1A ] = ;
+opcodes[ 0x1A ] = ld_from_mem(A, D, E);
 opcodes[ 0x1B ] = ;
 opcodes[ 0x1C ] = ;
 opcodes[ 0x1D ] = ;
-opcodes[ 0x1E ] = ;
+opcodes[ 0x1E ] = ld(E, Immediate);
 opcodes[ 0x1F ] = ;
 
 opcodes[ 0x20 ] = ;
@@ -170,7 +220,7 @@ opcodes[ 0x22 ] = ;
 opcodes[ 0x23 ] = ;
 opcodes[ 0x24 ] = ;
 opcodes[ 0x25 ] = ;
-opcodes[ 0x26 ] = ;
+opcodes[ 0x26 ] = ld(H, Immediate);
 opcodes[ 0x27 ] = ;
 opcodes[ 0x28 ] = ;
 opcodes[ 0x29 ] = ;
@@ -178,24 +228,24 @@ opcodes[ 0x2A ] = ;
 opcodes[ 0x2B ] = ;
 opcodes[ 0x2C ] = ;
 opcodes[ 0x2D ] = ;
-opcodes[ 0x2E ] = ;
+opcodes[ 0x2E ] = ld(L, Immediate);
 opcodes[ 0x2F ] = ;
 
 opcodes[ 0x30 ] = ;
 opcodes[ 0x31 ] = ;
-opcodes[ 0x32 ] = ;
+opcodes[ 0x32 ] = ld_to_mem(Immediate, A);
 opcodes[ 0x33 ] = ;
 opcodes[ 0x34 ] = ;
 opcodes[ 0x35 ] = ;
-opcodes[ 0x36 ] = ;
+opcodes[ 0x36 ] = ld_to_mem(H,L,Immediate);
 opcodes[ 0x37 ] = ;
 opcodes[ 0x38 ] = ;
 opcodes[ 0x39 ] = ;
-opcodes[ 0x3A ] = ;
+opcodes[ 0x3A ] = ld_from_mem(A, Immediate);
 opcodes[ 0x3B ] = ;
 opcodes[ 0x3C ] = ;
 opcodes[ 0x3D ] = ;
-opcodes[ 0x3E ] = ;
+opcodes[ 0x3E ] = ld(A, Immediate);
 opcodes[ 0x3F ] = ;
 
 
@@ -205,7 +255,7 @@ opcodes[ 0x42 ] = ld(B,D);
 opcodes[ 0x43 ] = ld(B,E);
 opcodes[ 0x44 ] = ld(B,H);
 opcodes[ 0x45 ] = ld(B,L);
-opcodes[ 0x46 ] = ld(B, HL );
+opcodes[ 0x46 ] = ld_from_mem(B, H, L );
 opcodes[ 0x47 ] = ld(B,A);
 
 opcodes[ 0x48 ] = ld(C,B);
@@ -214,7 +264,7 @@ opcodes[ 0x4A ] = ld(C,D);
 opcodes[ 0x4B ] = ld(C,E);
 opcodes[ 0x4C ] = ld(C,H);
 opcodes[ 0x4D ] = ld(C,L);
-opcodes[ 0x4E ] = ld(C, HL );
+opcodes[ 0x4E ] = ld_from_mem(C, H, L );
 opcodes[ 0x4F ] = ld(C,A);
 
 opcodes[ 0x50 ] = ld(D,B);
@@ -223,7 +273,7 @@ opcodes[ 0x52 ] = ld(D,D);
 opcodes[ 0x53 ] = ld(D,E);
 opcodes[ 0x54 ] = ld(D,H);
 opcodes[ 0x55 ] = ld(D,L);
-opcodes[ 0x56 ] = ld(D, HL );
+opcodes[ 0x56 ] = ld_from_mem(D, H, L );
 opcodes[ 0x57 ] = ld(D,A);
 
 opcodes[ 0x58 ] = ld(E,B);
@@ -232,7 +282,7 @@ opcodes[ 0x5A ] = ld(E,D);
 opcodes[ 0x5B ] = ld(E,E);
 opcodes[ 0x5C ] = ld(E,H);
 opcodes[ 0x5D ] = ld(E,L);
-opcodes[ 0x5E ] = ld(E, HL );
+opcodes[ 0x5E ] = ld_from_mem(E, H, L );
 opcodes[ 0x5F ] = ld(E,A);
 
 opcodes[ 0x60 ] = ld(H,B);
@@ -241,7 +291,7 @@ opcodes[ 0x62 ] = ld(H,D);
 opcodes[ 0x63 ] = ld(H,E);
 opcodes[ 0x64 ] = ld(H,H);
 opcodes[ 0x65 ] = ld(H,L);
-opcodes[ 0x66 ] = ld(H, HL );
+opcodes[ 0x66 ] = ld_from_mem(H, H, L );
 opcodes[ 0x67 ] = ld(H,A);
 
 opcodes[ 0x68 ] = ld(L,B);
@@ -250,17 +300,17 @@ opcodes[ 0x6A ] = ld(L,D);
 opcodes[ 0x6B ] = ld(L,E);
 opcodes[ 0x6C ] = ld(L,H);
 opcodes[ 0x6D ] = ld(L,L);
-opcodes[ 0x6E ] = ld(L, HL );
+opcodes[ 0x6E ] = ld_from_mem(L, H, L );
 opcodes[ 0x6F ] = ld(L,A);
 
-opcodes[ 0x70 ] = ld(HL, B);
-opcodes[ 0x71 ] = ld(HL, C);
-opcodes[ 0x72 ] = ld(HL, D);
-opcodes[ 0x73 ] = ld(HL, E);
-opcodes[ 0x74 ] = ld(HL, H);
-opcodes[ 0x75 ] = ld(HL, L);
+opcodes[ 0x70 ] = ld_to_mem(H,L, B);
+opcodes[ 0x71 ] = ld_to_mem(H,L, C);
+opcodes[ 0x72 ] = ld_to_mem(H,L, D);
+opcodes[ 0x73 ] = ld_to_mem(H,L, E);
+opcodes[ 0x74 ] = ld_to_mem(H,L, H);
+opcodes[ 0x75 ] = ld_to_mem(H,L, L);
 opcodes[ 0x76 ] = function halt() {}; // if interrupts disabled, stall 1 cycle, skip next instruction and continue
-opcodes[ 0x77 ] = ld(HL, A);
+opcodes[ 0x77 ] = ld_to_mem(H,L, A);
 
 opcodes[ 0x78 ] = ld(A,B);
 opcodes[ 0x79 ] = ld(A,C);
@@ -268,7 +318,7 @@ opcodes[ 0x7A ] = ld(A,D);
 opcodes[ 0x7B ] = ld(A,E);
 opcodes[ 0x7C ] = ld(A,H);
 opcodes[ 0x7D ] = ld(A,L);
-opcodes[ 0x7E ] = ld(A, HL );
+opcodes[ 0x7E ] = ld_from_mem(A, H, L );
 opcodes[ 0x7F ] = ld(A,A);
 
 opcodes[ 0x80 ] = ALU(ADD,A,B);
@@ -343,78 +393,78 @@ opcodes[ 0xBD ] = ALU(CP,A,L);
 opcodes[ 0xBE ] = ALU(CP,A, HL );
 opcodes[ 0xBF ] = ALU(CP,A,A);
 
-opcodes[ 0xC0 ] = ;
-opcodes[ 0xC1 ] = ;
-opcodes[ 0xC2 ] = ;
-opcodes[ 0xC3 ] = ;
-opcodes[ 0xC4 ] = ;
-opcodes[ 0xC5 ] = ;
+//opcodes[ 0xC0 ] = ;
+//opcodes[ 0xC1 ] = ;
+//opcodes[ 0xC2 ] = ;
+//opcodes[ 0xC3 ] = ;
+//opcodes[ 0xC4 ] = ;
+//opcodes[ 0xC5 ] = ;
 opcodes[ 0xC6 ] = ALU(ADD,A,Immediate);
-opcodes[ 0xC7 ] = ;
-opcodes[ 0xC8 ] = ;
-opcodes[ 0xC9 ] = ;
-opcodes[ 0xCA ] = ;
-opcodes[ 0xCB ] = ;
-opcodes[ 0xCC ] = ;
-opcodes[ 0xCD ] = ;
+//opcodes[ 0xC7 ] = ;
+//opcodes[ 0xC8 ] = ;
+//opcodes[ 0xC9 ] = ;
+//opcodes[ 0xCA ] = ;
+//opcodes[ 0xCB ] = ;
+//opcodes[ 0xCC ] = ;
+//opcodes[ 0xCD ] = ;
 opcodes[ 0xCE ] = ALU(ADC,A,Immediate);
-opcodes[ 0xCF ] = ;
+//opcodes[ 0xCF ] = ;
 
-opcodes[ 0xD0 ] = ;
-opcodes[ 0xD1 ] = ;
-opcodes[ 0xD2 ] = ;
-opcodes[ 0xD3 ] = ;
-opcodes[ 0xD4 ] = ;
-opcodes[ 0xD5 ] = ;
+//opcodes[ 0xD0 ] = ;
+//opcodes[ 0xD1 ] = ;
+//opcodes[ 0xD2 ] = ;
+//opcodes[ 0xD3 ] = ;
+//opcodes[ 0xD4 ] = ;
+//opcodes[ 0xD5 ] = ;
 opcodes[ 0xD6 ] = ALU(SUB,A,Immediate);
-opcodes[ 0xD7 ] = ;
-opcodes[ 0xD8 ] = ;
-opcodes[ 0xD9 ] = ;
-opcodes[ 0xDA ] = ;
-opcodes[ 0xDB ] = ;
-opcodes[ 0xDC ] = ;
-opcodes[ 0xDD ] = ;
+//opcodes[ 0xD7 ] = ;
+//opcodes[ 0xD8 ] = ;
+//opcodes[ 0xD9 ] = ;
+//opcodes[ 0xDA ] = ;
+//opcodes[ 0xDB ] = unused;
+//opcodes[ 0xDC ] = ;
+//opcodes[ 0xDD ] = unused;
 opcodes[ 0xDE ] = ALU(SBC,A,Immediate);
-opcodes[ 0xDF ] = ;
+//opcodes[ 0xDF ] = ;
 
-opcodes[ 0xE0 ] = ;
-opcodes[ 0xE1 ] = ;
-opcodes[ 0xE2 ] = ;
-opcodes[ 0xE3 ] = ;
-opcodes[ 0xE4 ] = ;
-opcodes[ 0xE5 ] = ;
-opcodes[ 0xE6 ] = ;
-opcodes[ 0xE7 ] = ;
-opcodes[ 0xE8 ] = ;
-opcodes[ 0xE9 ] = ;
-opcodes[ 0xEA ] = ;
-opcodes[ 0xEB ] = ;
-opcodes[ 0xEC ] = ;
-opcodes[ 0xED ] = ;
-opcodes[ 0xEE ] = ;
-opcodes[ 0xEF ] = ;
+//opcodes[ 0xE0 ] = ; //LD   (FF00+n),A
+//opcodes[ 0xE1 ] = ;
+//opcodes[ 0xE2 ] = ; //LD   (FF00+C),A
+//opcodes[ 0xE3 ] = unused;
+//opcodes[ 0xE4 ] = unused;
+//opcodes[ 0xE5 ] = ;
+opcodes[ 0xE6 ] = ALU(AND,A,Immediate);
+//opcodes[ 0xE7 ] = ;
+//opcodes[ 0xE8 ] = ; //ADD  SP,dd
+//opcodes[ 0xE9 ] = ; //LD   (nn),A
+//opcodes[ 0xEA ] = ;
+//opcodes[ 0xEB ] = unused;
+//opcodes[ 0xEC ] = unused;
+//opcodes[ 0xED ] = unused;
+opcodes[ 0xEE ] = ALU(XOR,A,Immediate);
+//opcodes[ 0xEF ] = ;
 
-opcodes[ 0xF0 ] = ;
-opcodes[ 0xF1 ] = ;
-opcodes[ 0xF2 ] = ;
-opcodes[ 0xF3 ] = ;
-opcodes[ 0xF4 ] = ;
-opcodes[ 0xF5 ] = ;
-opcodes[ 0xF6 ] = ;
-opcodes[ 0xF7 ] = ;
-opcodes[ 0xF8 ] = ;
-opcodes[ 0xF9 ] = ;
-opcodes[ 0xFA ] = ;
-opcodes[ 0xFB ] = ;
-opcodes[ 0xFC ] = ;
-opcodes[ 0xFD ] = ;
-opcodes[ 0xFE ] = ;
-opcodes[ 0xFF ] = ;
-
-
+//opcodes[ 0xF0 ] = ; //LD   A,(FF00+n)
+//opcodes[ 0xF1 ] = ;
+//opcodes[ 0xF2 ] = ; //LD   A,(FF00+C)
+//opcodes[ 0xF3 ] = ;
+//opcodes[ 0xF4 ] = unused;
+//opcodes[ 0xF5 ] = ;
+opcodes[ 0xF6 ] = ALU(OR,A,Immediate);
+//opcodes[ 0xF7 ] = ;
+//opcodes[ 0xF8 ] = ; //LD   HL,SP+dd
+//opcodes[ 0xF9 ] = ;
+//opcodes[ 0xFA ] = ; //LD   A,(nn)
+//opcodes[ 0xFB ] = ;
+//opcodes[ 0xFC ] = unused;
+//opcodes[ 0xFD ] = unused;
+opcodes[ 0xFE ] = ALU(CP,A,Immediate);
+//opcodes[ 0xFF ] = ;
 
 
 
+
+//CB3X //SWAP r/(HL)
 
 
 
