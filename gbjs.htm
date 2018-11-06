@@ -3,17 +3,25 @@
 <script>
 
 
-MEM = new Uint8Array(65536);
+const MEM = new Uint8Array(65536);
 
 function readMem(addr){return MEM[addr];}
 function writeMem(addr, data){ MEM[addr] = data;}
 
-REG = new Uint8Array(8);
+const REG = new Uint8Array(8);
 
+const FLAGS = {
+  C:0,
+  N:0,
+  PV:0,
+  H:0,
+  Z:0,
+  S:0
+}
 
-PC = 0
+var PC = 0
 
-SP = 0
+var SP = 0
 
 
 
@@ -29,12 +37,8 @@ const HL = 0b110
 
 const Immediate = 99
 
-const opcodes = [];
-
-
-
-opcodes[255] = function(){ throw Error("Undefined Opcode")}
-for (var i of opcodes) i=opcodes[255];
+const opcodes = Array(256);
+for (var i=0;i<256;i++) opcodes[i]=function(){ throw Error("Undefined Opcode "+i )};
 
 
 function ld(a,b){ 
@@ -56,95 +60,128 @@ function ld(a,b){
 }
 
 
-function add(a,b){
+
+
+function ALU(op, a, b){
 
 
   if (a !== A) {
-  //16 bit add
+  //16 bit add/adc  - use separate ALU call because status flags will be different anyway?
   }
-
 
 
   if (b == Immediate) return function(){
-
-    REG[A] += MEM[ PC+1 ]
-    // TODO: status flags
-
+    REG[A] = ALU_process_8bit( op, MEM[ PC+1 ] )
     PC+=2
   }
-
   if (b == HL) return function(){
-
-    REG[A] += readMem( (REG[H]<<8)+REG[L] );
-    // TODO: status flags
+    REG[A] = ALU_process_8bit( readMem( op, (REG[H]<<8)+REG[L] ) );
     PC++
   }
-
-
   return function(){
-
-    REG[A] += REG[b];
-    // TODO: status flags
+    REG[A] = ALU_process_8bit( op, REG[b]);
     PC++
   }
   
 
-
 }
 
-function adc(a,b){
-  if (b == HL) return function(){
-    REG[A] += readMem( (REG[H]<<8)+REG[L] ); //+carry
-    // TODO: status flags
-    PC++
-  }
-  if (b == Immediate) return function(){
-    REG[A] += MEM[ PC+1 ] //+carry
-    // TODO: status flags
-    PC+=2
-  }
-  return function(){
+const ADD = 1
+const ADC = 2
+const SUB = 3
+const SBC = 4
 
-    REG[A] += REG[b]; // + carry
-    // TODO: status flags
-    PC++
+function ALU_process_8bit(op, b){
+
+  var result = REG[A];
+  switch (op){
+    case ADD: result += b; break;
+    case ADC: result += b + FLAGS.C; break;
+    case SUB: result -= b; break;
+    case SBC: result -= b - FLAGS.C; break;
+
   }
+
+  FLAGS.S = (result & (1<<7) !=0)
+  FLAGS.Z = (result == 0)
+  FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
+  FLAGS.PV = 
+  FLAGS.C = result > 255 || result < 0;
+
+
+  return result&0xFF;
 }
 
-function sub(b) {
-  if (b == Immediate) return function(){
-    REG[A] -= MEM[ PC+1 ]; 
-    // TODO: status flags
-
-    PC+=2
-  }
-  if (b == HL) return function(){
-    REG[A] -= readMem( (REG[H]<<8)+REG[L] );
-    // TODO: status flags
-    PC++
-  }
-  return function(){
-    REG[A] -= REG[b]; 
-    // TODO: status flags
-    PC++
-  }
-}
-
-function sbc(a, b) {
-  if (b == Immediate) return function(){
-    REG[A] -= MEM[ PC+1 ]; //-carry
-    // TODO: status flags
-
-    PC+=2
-  }
-  return function(){
-    REG[A] -= REG[b]; // - carry
-    // TODO: status flags
-    PC++
-  }
-}
 
 opcodes[ 0x00 ] = function nop(){ PC++ };
+
+opcodes[ 0x01 ] = ;
+opcodes[ 0x02 ] = ;
+opcodes[ 0x03 ] = ;
+opcodes[ 0x04 ] = ;
+opcodes[ 0x05 ] = ;
+opcodes[ 0x06 ] = ;
+opcodes[ 0x07 ] = ;
+opcodes[ 0x08 ] = ;
+opcodes[ 0x09 ] = ;
+opcodes[ 0x0A ] = ;
+opcodes[ 0x0B ] = ;
+opcodes[ 0x0C ] = ;
+opcodes[ 0x0D ] = ;
+opcodes[ 0x0E ] = ;
+opcodes[ 0x0F ] = ;
+
+opcodes[ 0x10 ] = ;
+opcodes[ 0x11 ] = ;
+opcodes[ 0x12 ] = ;
+opcodes[ 0x13 ] = ;
+opcodes[ 0x14 ] = ;
+opcodes[ 0x15 ] = ;
+opcodes[ 0x16 ] = ;
+opcodes[ 0x17 ] = ;
+opcodes[ 0x18 ] = ;
+opcodes[ 0x19 ] = ;
+opcodes[ 0x1A ] = ;
+opcodes[ 0x1B ] = ;
+opcodes[ 0x1C ] = ;
+opcodes[ 0x1D ] = ;
+opcodes[ 0x1E ] = ;
+opcodes[ 0x1F ] = ;
+
+opcodes[ 0x20 ] = ;
+opcodes[ 0x21 ] = ;
+opcodes[ 0x22 ] = ;
+opcodes[ 0x23 ] = ;
+opcodes[ 0x24 ] = ;
+opcodes[ 0x25 ] = ;
+opcodes[ 0x26 ] = ;
+opcodes[ 0x27 ] = ;
+opcodes[ 0x28 ] = ;
+opcodes[ 0x29 ] = ;
+opcodes[ 0x2A ] = ;
+opcodes[ 0x2B ] = ;
+opcodes[ 0x2C ] = ;
+opcodes[ 0x2D ] = ;
+opcodes[ 0x2E ] = ;
+opcodes[ 0x2F ] = ;
+
+opcodes[ 0x30 ] = ;
+opcodes[ 0x31 ] = ;
+opcodes[ 0x32 ] = ;
+opcodes[ 0x33 ] = ;
+opcodes[ 0x34 ] = ;
+opcodes[ 0x35 ] = ;
+opcodes[ 0x36 ] = ;
+opcodes[ 0x37 ] = ;
+opcodes[ 0x38 ] = ;
+opcodes[ 0x39 ] = ;
+opcodes[ 0x3A ] = ;
+opcodes[ 0x3B ] = ;
+opcodes[ 0x3C ] = ;
+opcodes[ 0x3D ] = ;
+opcodes[ 0x3E ] = ;
+opcodes[ 0x3F ] = ;
+
 
 opcodes[ 0x40 ] = ld(B,B);
 opcodes[ 0x41 ] = ld(B,C);
@@ -218,50 +255,159 @@ opcodes[ 0x7D ] = ld(A,L);
 opcodes[ 0x7E ] = ld(A, HL );
 opcodes[ 0x7F ] = ld(A,A);
 
-opcodes[ 0x80 ] = add(A,B);
-opcodes[ 0x81 ] = add(A,C);
-opcodes[ 0x82 ] = add(A,D);
-opcodes[ 0x83 ] = add(A,E);
-opcodes[ 0x84 ] = add(A,H);
-opcodes[ 0x85 ] = add(A,L);
-opcodes[ 0x86 ] = add(A, HL );
-opcodes[ 0x87 ] = add(A,A);
+opcodes[ 0x80 ] = ALU(ADD,A,B);
+opcodes[ 0x81 ] = ALU(ADD,A,C);
+opcodes[ 0x82 ] = ALU(ADD,A,D);
+opcodes[ 0x83 ] = ALU(ADD,A,E);
+opcodes[ 0x84 ] = ALU(ADD,A,H);
+opcodes[ 0x85 ] = ALU(ADD,A,L);
+opcodes[ 0x86 ] = ALU(ADD,A, HL );
+opcodes[ 0x87 ] = ALU(ADD,A,A);
 
-opcodes[ 0x88 ] = adc(A,B);
-opcodes[ 0x89 ] = adc(A,C);
-opcodes[ 0x8A ] = adc(A,D);
-opcodes[ 0x8B ] = adc(A,E);
-opcodes[ 0x8C ] = adc(A,H);
-opcodes[ 0x8D ] = adc(A,L);
-opcodes[ 0x8E ] = adc(A, HL );
-opcodes[ 0x8F ] = adc(A,A);
+opcodes[ 0x88 ] = ALU(ADC,A,B);
+opcodes[ 0x89 ] = ALU(ADC,A,C);
+opcodes[ 0x8A ] = ALU(ADC,A,D);
+opcodes[ 0x8B ] = ALU(ADC,A,E);
+opcodes[ 0x8C ] = ALU(ADC,A,H);
+opcodes[ 0x8D ] = ALU(ADC,A,L);
+opcodes[ 0x8E ] = ALU(ADC,A, HL );
+opcodes[ 0x8F ] = ALU(ADC,A,A);
 
-opcodes[ 0x90 ] = sub(B);
-opcodes[ 0x91 ] = sub(C);
-opcodes[ 0x92 ] = sub(D);
-opcodes[ 0x93 ] = sub(E);
-opcodes[ 0x94 ] = sub(H);
-opcodes[ 0x95 ] = sub(L);
-opcodes[ 0x96 ] = sub( HL );
-opcodes[ 0x97 ] = sub(A);
+opcodes[ 0x90 ] = ALU(SUB,A,B);
+opcodes[ 0x91 ] = ALU(SUB,A,C);
+opcodes[ 0x92 ] = ALU(SUB,A,D);
+opcodes[ 0x93 ] = ALU(SUB,A,E);
+opcodes[ 0x94 ] = ALU(SUB,A,H);
+opcodes[ 0x95 ] = ALU(SUB,A,L);
+opcodes[ 0x96 ] = ALU(SUB,A, HL );
+opcodes[ 0x97 ] = ALU(SUB,A,A);
 
-opcodes[ 0x98 ] = sbc(B);
-opcodes[ 0x99 ] = sbc(C);
-opcodes[ 0x9A ] = sbc(D);
-opcodes[ 0x9B ] = sbc(E);
-opcodes[ 0x9C ] = sbc(H);
-opcodes[ 0x9D ] = sbc(L);
-opcodes[ 0x9E ] = sbc( HL );
-opcodes[ 0x9F ] = sbc(A);
+opcodes[ 0x98 ] = ALU(SBC,A,B);
+opcodes[ 0x99 ] = ALU(SBC,A,C);
+opcodes[ 0x9A ] = ALU(SBC,A,D);
+opcodes[ 0x9B ] = ALU(SBC,A,E);
+opcodes[ 0x9C ] = ALU(SBC,A,H);
+opcodes[ 0x9D ] = ALU(SBC,A,L);
+opcodes[ 0x9E ] = ALU(SBC,A, HL );
+opcodes[ 0x9F ] = ALU(SBC,A,A);
 
-opcodes[ 0xC6 ] = add(A,Immediate);
-opcodes[ 0xCE ] = adc(A,Immediate);
+opcodes[ 0xA0 ] = ;
+opcodes[ 0xA1 ] = ;
+opcodes[ 0xA2 ] = ;
+opcodes[ 0xA3 ] = ;
+opcodes[ 0xA4 ] = ;
+opcodes[ 0xA5 ] = ;
+opcodes[ 0xA6 ] = ;
+opcodes[ 0xA7 ] = ;
+opcodes[ 0xA8 ] = ;
+opcodes[ 0xA9 ] = ;
+opcodes[ 0xAA ] = ;
+opcodes[ 0xAB ] = ;
+opcodes[ 0xAC ] = ;
+opcodes[ 0xAD ] = ;
+opcodes[ 0xAE ] = ;
+opcodes[ 0xAF ] = ;
 
-opcodes[ 0xD6 ] = sub(Immediate);
-opcodes[ 0xDE ] = sbc(Immediate);
+opcodes[ 0xB0 ] = ;
+opcodes[ 0xB1 ] = ;
+opcodes[ 0xB2 ] = ;
+opcodes[ 0xB3 ] = ;
+opcodes[ 0xB4 ] = ;
+opcodes[ 0xB5 ] = ;
+opcodes[ 0xB6 ] = ;
+opcodes[ 0xB7 ] = ;
+opcodes[ 0xB8 ] = ;
+opcodes[ 0xB9 ] = ;
+opcodes[ 0xBA ] = ;
+opcodes[ 0xBB ] = ;
+opcodes[ 0xBC ] = ;
+opcodes[ 0xBD ] = ;
+opcodes[ 0xBE ] = ;
+opcodes[ 0xBF ] = ;
 
-opcodes[ 0xE6 ] = and(Immediate);
-opcodes[ 0xF6 ] =  or(Immediate);
+opcodes[ 0xC0 ] = ;
+opcodes[ 0xC1 ] = ;
+opcodes[ 0xC2 ] = ;
+opcodes[ 0xC3 ] = ;
+opcodes[ 0xC4 ] = ;
+opcodes[ 0xC5 ] = ;
+opcodes[ 0xC6 ] = ALU(ADD,A,Immediate);
+opcodes[ 0xC7 ] = ;
+opcodes[ 0xC8 ] = ;
+opcodes[ 0xC9 ] = ;
+opcodes[ 0xCA ] = ;
+opcodes[ 0xCB ] = ;
+opcodes[ 0xCC ] = ;
+opcodes[ 0xCD ] = ;
+opcodes[ 0xCE ] = ALU(ADC,A,Immediate);
+opcodes[ 0xCF ] = ;
+
+opcodes[ 0xD0 ] = ;
+opcodes[ 0xD1 ] = ;
+opcodes[ 0xD2 ] = ;
+opcodes[ 0xD3 ] = ;
+opcodes[ 0xD4 ] = ;
+opcodes[ 0xD5 ] = ;
+opcodes[ 0xD6 ] = ALU(SUB,A,Immediate);
+opcodes[ 0xD7 ] = ;
+opcodes[ 0xD8 ] = ;
+opcodes[ 0xD9 ] = ;
+opcodes[ 0xDA ] = ;
+opcodes[ 0xDB ] = ;
+opcodes[ 0xDC ] = ;
+opcodes[ 0xDD ] = ;
+opcodes[ 0xDE ] = ALU(SBC,A,Immediate);
+opcodes[ 0xDF ] = ;
+
+opcodes[ 0xE0 ] = ;
+opcodes[ 0xE1 ] = ;
+opcodes[ 0xE2 ] = ;
+opcodes[ 0xE3 ] = ;
+opcodes[ 0xE4 ] = ;
+opcodes[ 0xE5 ] = ;
+opcodes[ 0xE6 ] = ;
+opcodes[ 0xE7 ] = ;
+opcodes[ 0xE8 ] = ;
+opcodes[ 0xE9 ] = ;
+opcodes[ 0xEA ] = ;
+opcodes[ 0xEB ] = ;
+opcodes[ 0xEC ] = ;
+opcodes[ 0xED ] = ;
+opcodes[ 0xEE ] = ;
+opcodes[ 0xEF ] = ;
+
+opcodes[ 0xF0 ] = ;
+opcodes[ 0xF1 ] = ;
+opcodes[ 0xF2 ] = ;
+opcodes[ 0xF3 ] = ;
+opcodes[ 0xF4 ] = ;
+opcodes[ 0xF5 ] = ;
+opcodes[ 0xF6 ] = ;
+opcodes[ 0xF7 ] = ;
+opcodes[ 0xF8 ] = ;
+opcodes[ 0xF9 ] = ;
+opcodes[ 0xFA ] = ;
+opcodes[ 0xFB ] = ;
+opcodes[ 0xFC ] = ;
+opcodes[ 0xFD ] = ;
+opcodes[ 0xFE ] = ;
+opcodes[ 0xFF ] = ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
