@@ -42,10 +42,10 @@ const DE = 259
 const SPr = 260
 
 const opcodes = Array(256);
-for (var i=0;i<256;i++) opcodes[i]=function(){ throw Error("Undefined Opcode "+i )};
+for (var i=0;i<256;i++) opcodes[i]=function(){ throw Error("Undefined Opcode" )};
 
 const CBcodes = Array(256);
-for (var i=0;i<256;i++) CBcodes[i]=function(){ throw Error("Undefined 0xCB Opcode "+i )};
+for (var i=0;i<256;i++) CBcodes[i]=function(){ throw Error("Undefined 0xCB Opcode" )};
 
 
 function ld(a,b){ 
@@ -308,7 +308,14 @@ function dec16(a,b) {
   }
 }
 
+function signedOffset(b){
+  return (b>127)? (b-254) : b;
+}
 
+function jrNZ(){
+  if (FLAGS.Z) PC+=2
+  else PC += signedOffset(MEM[PC+1])
+}
 
 
 const unused = function(){}; //GMB locks when called
@@ -348,7 +355,7 @@ opcodes[ 0x1D ] = dec(E);
 opcodes[ 0x1E ] = ld(E, Immediate);
 //opcodes[ 0x1F ] = ;
 
-//opcodes[ 0x20 ] = ;
+opcodes[ 0x20 ] = jrNZ;
 opcodes[ 0x21 ] = ld16(H,L,Immediate);
 opcodes[ 0x22 ] = ldi(HL,A);
 opcodes[ 0x23 ] = inc16(H,L);
@@ -741,8 +748,8 @@ function res(b, r) {
   }
 }
 
-for (var i=0;i++;i<8){
-  for (var j=0;j++;j<8) {
+for (var i=0;i<8;i++){
+  for (var j=0;j<8;j++) {
     CBcodes[ 0x40 + i*8 + j ] = bit(i, j);
     CBcodes[ 0x80 + i*8 + j ] = res(i, j);
     CBcodes[ 0xC0 + i*8 + j ] = set(i, j);
@@ -751,8 +758,11 @@ for (var i=0;i++;i<8){
 
 
 
+bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0C 3E F3 E2 32 3E 77 77 3E FC E0 47 11 04 01 21 10 80 1A CD 95 00 CD 96 00 13 7B FE 34 20 F3 11 D8 00 06 08 1A 13 22 23 05 20 F9 3E 19 EA 10 99 21 2F 99 0E 0C 3D 28 08 32 0D 20 F9 2E 0F 18 F3 67 3E 64 57 E0 42 3E 91 E0 40 04 1E 02 0E 0C F0 44 FE 90 20 FA 0D 20 F7 1D 20 F2 0E 13 24 7C 1E 83 FE 62 28 06 1E C1 FE 64 20 06 7B E2 0C 3E 87 E2 F0 42 90 E0 42 15 20 D2 05 20 4F 16 20 18 CB 4F 06 04 C5 CB 11 17 C1 CB 11 17 05 20 F5 22 23 22 23 C9 CE ED 66 66 CC 0D 00 0B 03 73 00 83 00 0C 00 0D 00 08 11 1F 88 89 00 0E DC CC 6E E6 DD DD D9 99 BB BB 67 63 6E 0E EC CC DD DC 99 9F BB B9 33 3E 3C 42 B9 A5 B9 A5 42 3C 21 04 01 11 A8 00 1A 13 BE 20 FE 23 7D FE 34 20 F5 06 19 78 86 23 05 20 FB 86 20 FE 3E 01 E0 50".split(" ")
+testProg = "3E 55 06 0F A0 D6 01 20 FB 3E 55".split(" ")
 
-testProg = "3E 55 06 0F A0".split(" ")
+testProg = bootCode
+
 for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 
@@ -774,7 +784,7 @@ function cpu(){
   function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 
   var debug = "Mem: ";
-  for (var i=0;i<32;i++) debug+=f(MEM[i]) + " ";
+  for (var i=0;i<32;i++) debug+= PC==i ? "<span style='color:red'>"+f(MEM[i])+"</span> ": f(MEM[i]) + " ";
   debug+="\n\nPC: "+ f(PC,4)
   debug+="\n\nSP: "+ f(SP,4)
   debug+="\n\nFlags\nZ: "+FLAGS.Z+"\nN: "+FLAGS.N+"\nH: "+FLAGS.N+"\nC: "+FLAGS.C+"\n"
