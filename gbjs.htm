@@ -629,18 +629,18 @@ function addHL(a,b){
   }
 }
 function daa(){
-  var a = REG[A];
+  var a = REG[A], c=false;
   if (FLAGS.N) {
-    if ((a&0x0f)>9 || FLAGS.H) a-=0x06;
-    if (a>0x99 || FLAGS.C) a-=0x60;
+    if (FLAGS.H) a-=0x06;
+    if (FLAGS.C) a-=0x60;
   } else {
-    if ((a&0x0f)>9 || FLAGS.H) a+=0x06;
-    if (a>0x99 || FLAGS.C) a+=0x60;
+    if ((a&0x0f)>0x09 || FLAGS.H)  a+=0x06;
+    if (       a>0x99 || FLAGS.C) {a+=0x60; c=true}
   }
 
   FLAGS.Z = (a == 0)
-  FLAGS.C = a > 255 || a < 0;
-  FLAGS.H = (REG[A] &(1<<4)) != (a &(1<<4))
+  FLAGS.C = c
+  FLAGS.H = 0
 
   REG[A]=a;
   PC++
