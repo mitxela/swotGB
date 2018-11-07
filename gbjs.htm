@@ -7,7 +7,7 @@
 Memory map
 
 	$FFFF       	Interrupt Enable Flag
-	$FF80-$FFFE 	Quick access RAM - 127 bytes
+	$FF80-$FFFE 	HRAM - 127 bytes
 	$FF00-$FF7F 	Hardware I/O Registers
 	$FEA0-$FEFF 	Unusable Memory
 	$FE00-$FE9F 	OAM - Object Attribute Memory
@@ -24,19 +24,48 @@ Memory map
 	$0000-$00FF 	Restart and Interrupt Vectors
 
 Bank switch:  write bank number to $2000 
-  -- just copy data from rom to MEM when switch happens?
-  some memory controllers have ram in the cartridge
+
+  Cartridge RAM has separate bank number to cartridge ROM
+
+
+Bootcode: 
+  load first bank of rom into MEM
+  overwrite first 256 bytes with bootcode
+  after verification, overwrite first 256 bytes with data from rom
 
 */
 
-// Should PC reads go through these hooks too?
 
-const MEM = new Uint8Array(65536);
 
-function readMem(addr){return MEM[addr];}
-function readMem16(addr){return [MEM[addr+1],MEM[addr]]}
-function writeMem(addr, data){ MEM[addr] = data;}
-function writeMem16(addr, dataH, dataL){ MEM[addr] = dataL; MEM[addr+1] = dataH;}
+const MEM = new Uint8Array(65536); // Main address space
+var ROM = new Uint8Array(256); //populate later
+var ROMbank =0; // offset 
+
+function readMem(addr){
+  //if (addr <= 0x3fff) return ROM[ addr ];
+  //if (addr <= 0x7fff) return ROM[ addr + ROMbank ];
+  
+  return MEM[addr];
+}
+
+function readMem16(addr){
+  //just presuming that some peripherals will need to hook on 16 bits
+  return [readMem(addr+1),readMem(addr)]
+}
+
+function writeMem(addr, data){
+  if (addr<=0x1fff) return;//RAM enable
+  if (addr<=0x3fff) { //Rom bank number
+    ROMbank= data; //different for different MBCs
+    return;
+  }
+
+  MEM[addr] = data;
+}
+function writeMem16(addr, dataH, dataL){
+  writeMem(addr) = dataL;
+  writeMem(addr+1) = dataH;
+}
 
 const REG = new Uint8Array(8);
 
@@ -600,9 +629,20 @@ function addHL(a,b){
   }
 }
 function daa(){
+  var a = REG[A];
+  if (FLAGS.N) {
+    if ((a&0x0f)>9 || FLAGS.H) a-=0x06;
+    if (a>0x99 || FLAGS.C) a-=0x60;
+  } else {
+    if ((a&0x0f)>9 || FLAGS.H) a+=0x06;
+    if (a>0x99 || FLAGS.C) a+=0x60;
+  }
 
-  //TODO
+  FLAGS.Z = (a == 0)
+  FLAGS.C = a > 255 || a < 0;
+  FLAGS.H = (REG[A] &(1<<4)) != (a &(1<<4))
 
+  REG[A]=a;
   PC++
 }
 function ld_ind_sp(){
@@ -1130,7 +1170,16 @@ for (var i=1;i--;)
 
 
 
+var openFile = function(event) {
+  var input = event.target;
 
+  var reader = new FileReader();
+  reader.onload = function(){
+    ROM = reader.result;
+
+  };
+  reader.readAsArrayBuffer(input.files[0]);
+};
 
 
 
@@ -1140,3 +1189,4 @@ for (var i=1;i--;)
 
 </script>
 <button onclick="cpu();return false">CPU</button>
+<input type='file' onchange='openFile(event)'>
