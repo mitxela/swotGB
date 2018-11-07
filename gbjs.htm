@@ -3,7 +3,33 @@
 <pre id=out></pre>
 
 <script>
+/*
+Memory map
 
+	$FFFF       	Interrupt Enable Flag
+	$FF80-$FFFE 	Quick access RAM - 127 bytes
+	$FF00-$FF7F 	Hardware I/O Registers
+	$FEA0-$FEFF 	Unusable Memory
+	$FE00-$FE9F 	OAM - Object Attribute Memory
+	$E000-$FDFF 	Echo RAM - Reserved, Do Not Use
+	$D000-$DFFF 	Internal RAM - Bank 1-7 (switchable - CGB only)
+	$C000-$CFFF 	Internal RAM - Bank 0 (fixed)
+	$A000-$BFFF 	Cartridge RAM (If Available)
+	$9C00-$9FFF 	BG Map Data 2
+	$9800-$9BFF 	BG Map Data 1
+	$8000-$97FF 	Character RAM
+	$4000-$7FFF 	Cartridge ROM - Switchable Banks 1-xx
+	$0150-$3FFF 	Cartridge ROM - Bank 0 (fixed)
+	$0100-$014F 	Cartridge Header Area
+	$0000-$00FF 	Restart and Interrupt Vectors
+
+Bank switch:  write bank number to $2000 
+  -- just copy data from rom to MEM when switch happens?
+  some memory controllers have ram in the cartridge
+
+*/
+
+// Should PC reads go through these hooks too?
 
 const MEM = new Uint8Array(65536);
 
@@ -54,7 +80,7 @@ for (var i=0;i<256;i++) CBcodes[i]=function(){ throw Error("Undefined 0xCB Opcod
 function ld(a,b){ 
 
   if (b==Immediate) return function(){
-    REG[a] = MEM[ PC+1 ];
+    REG[a] = readMem( PC+1 );
     PC+=2
   }
 
@@ -65,7 +91,7 @@ function ld(a,b){
 }
 function ld_from_mem(a, b, c){
   if (b==Immediate) return function(){
-    REG[a] = readMem( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8) )
+    REG[a] = readMem( readMem( PC+1 ) + (readMem( PC+2 ) <<8) )
     PC+=3
   }
 
@@ -77,11 +103,11 @@ function ld_from_mem(a, b, c){
 
 function ld_to_mem(a, b, c){
   if (a==Immediate) return function(){
-    writeMem( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8), REG[b] )
+    writeMem( readMem( PC+1 ) + (readMem( PC+2 ) <<8), REG[b] )
     PC+=3
   }
   if (c==Immediate) return function(){
-    writeMem( (REG[a]<<8)+REG[b] , MEM[PC+1] );
+    writeMem( (REG[a]<<8)+REG[b] , readMem(PC+1) );
     PC+=2
   }
   return function(){
@@ -92,34 +118,28 @@ function ld_to_mem(a, b, c){
 
 // Messy...
 function ld16(a,b,c){
-  
-  
-//  if (a==Immediate) return function(){
-//    // HL into mem
-//    writeMem16( MEM[ PC+1 ] + (MEM[ PC+2 ] <<8), REG[H], REG[L] )
-//    PC+=3
-//  }
   if (b==Immediate) {
-
     if (a==HL) return function(){
       // mem to hl
-      REG[L] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ]<<8))
-      REG[H] = readMem(MEM[ PC+1 ] + (MEM[ PC+2 ]<<8) + 1)
+      var s = readMem16(readMem( PC+1 ) + (readMem( PC+2 )<<8));
+
+      REG[H] = s[0]
+      REG[L] = s[1]
 
       PC+=3
     }
 
     // immediate into SP... 
     return function(){
-      SP = MEM[ PC+1 ] + (MEM[ PC+2 ] <<8)
+      SP = readMem( PC+1 ) + (readMem( PC+2 ) <<8)
       PC+=3
     }
 
   }
   if (c==Immediate) return function(){
     
-    REG[a] = MEM[ PC+2 ]
-    REG[b] = MEM[ PC+1 ]
+    REG[a] = readMem( PC+2 )
+    REG[b] = readMem( PC+1 )
 
     PC+=3
   }
@@ -184,11 +204,11 @@ function ldc(a,b){
 }
 function ldh(a,b){
   if (a==A) return function(){ //LD   A, (FF00+n)
-    REG[A] = readMem( 0xFF00 + MEM[PC+1] )
+    REG[A] = readMem( 0xFF00 + readMem(PC+1) )
     PC+=2
   }
   return function(){ //LD   (FF00+n),A
-    writeMem(0xFF00 + MEM[PC+1], REG[A])
+    writeMem(0xFF00 + readMem(PC+1), REG[A])
     PC+=2
   }
 }
@@ -196,14 +216,8 @@ function ldh(a,b){
 
 function ALU(op, a, b){
 
-
-  if (a !== A) {
-  //16 bit add/adc  - use separate ALU call because status flags will be different anyway?
-  }
-
-
   if (b == Immediate) return function(){
-    REG[A] = ALU_process_8bit( op, MEM[ PC+1 ] )
+    REG[A] = ALU_process_8bit( op, readMem( PC+1 ) )
     PC+=2
   }
   if (b == HL) return function(){
@@ -214,8 +228,6 @@ function ALU(op, a, b){
     REG[A] = ALU_process_8bit( op, REG[b]);
     PC++
   }
-  
-
 }
 
 const ADD = 1
@@ -338,45 +350,45 @@ function signedOffset(b){
 
 function jrNZ(){
   if (FLAGS.Z) PC+=2
-  else PC += signedOffset(MEM[PC+1])
+  else PC += signedOffset(readMem(PC+1))
 }
 
 function jrNC(){
   if (FLAGS.C) PC+=2
-  else PC += signedOffset(MEM[PC+1])
+  else PC += signedOffset(readMem(PC+1))
 }
 
 function jrZ(){
-  if (FLAGS.Z) PC += signedOffset(MEM[PC+1])
+  if (FLAGS.Z) PC += signedOffset(readMem(PC+1))
   else PC+=2
 }
 
 function jrC(){
-  if (FLAGS.C) PC += signedOffset(MEM[PC+1])
+  if (FLAGS.C) PC += signedOffset(readMem(PC+1))
   else PC+=2
 }
 
 function jr(){ //unconditional relative
-  PC += signedOffset(MEM[PC+1])
+  PC += signedOffset(readMem(PC+1))
 }
 
 function jp(){ //unconditional absolute
-  PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  PC = readMem(PC+1)+(readMem(PC+2)<<8)
 }
 function jpNZ(){
   if (FLAGS.Z) PC+=3
-  else PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  else PC = readMem(PC+1)+(readMem(PC+2)<<8)
 }
 function jpNC(){
   if (FLAGS.C) PC+=3
-  else PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  else PC = readMem(PC+1)+(readMem(PC+2)<<8)
 }
 function jpZ(){
-  if (FLAGS.Z) PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  if (FLAGS.Z) PC = readMem(PC+1)+(readMem(PC+2)<<8)
   else PC+=3
 }
 function jpC(){
-  if (FLAGS.C) PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  if (FLAGS.C) PC = readMem(PC+1)+(readMem(PC+2)<<8)
   else PC+=3
 }
 
@@ -422,7 +434,7 @@ function call(){
   SP -=2
   var npc = PC+3
   writeMem16(SP, npc>>8, npc&0xFF)
-  PC = MEM[PC+1]+(MEM[PC+2]<<8)
+  PC = readMem(PC+1)+(readMem(PC+2)<<8)
 }
 function callNZ(){
   if (FLAGS.Z) PC+=3
@@ -559,8 +571,68 @@ function scf(){
   FLAGS.C =true
   PC++
 }
+function cpl(){
+  REG[A] = ~REG[A]
+  FLAGS.N =true
+  FLAGS.H =true
+  PC++
+}
+function addHL(a,b){
+  if (a==SPr) return function(){
+    var l = REG[L] + (SP&0xFF);
+    REG[L] = l;
+    var h = REG[H] + (SP>>8) + (l>255?1:0)
+    FLAGS.H = (REG[H] &(1<<4)) != (h &(1<<4))
+    REG[H] = h;
+    FLAGS.C = (h>255)
+    FLAGS.N=false
+    PC++
+  }
+  return function(){
+    var l = REG[L] + REG[b];
+    REG[L] = l;
+    var h = REG[H] + REG[a] + (l>255?1:0)
+    FLAGS.H = (REG[H] &(1<<4)) != (h &(1<<4))
+    REG[H] = h;
+    FLAGS.C = (h>255)
+    FLAGS.N=false
+    PC++
+  }
+}
+function daa(){
 
+  //TODO
 
+  PC++
+}
+function ld_ind_sp(){
+  writeMem16( readMem(PC+1)+(readMem(PC+2)<<8) , SP>>8, SP&0xFF );
+  PC+=2
+}
+function ld_hl_spdd(){
+  var n = SP + signedOffset(readMem(PC+1))
+  REG[H] =(n>>8)
+  REG[L] =n&0xFF
+  FLAGS.N=false
+  FLAGS.Z=false
+  //H, C Flags ambiguous in pdf
+  PC+=2
+}
+function add_sp_n(){
+  SP += signedOffset(readMem(PC+1))
+  FLAGS.N=false
+  FLAGS.Z=false
+  //H, C Flags ambiguous
+  PC+=2
+}
+
+function halt() {
+// if interrupts disabled, stall 1 cycle, skip next instruction and continue
+  if (!EnableInterrupts) PC++
+}; 
+function waitForKeypress(){
+  //TODO
+}
 
 const unused = function(){}; //GMB locks when called
 
@@ -572,8 +644,8 @@ opcodes[ 0x04 ] = inc(B);
 opcodes[ 0x05 ] = dec(B);
 opcodes[ 0x06 ] = ld(B, Immediate);
 opcodes[ 0x07 ] = shift(RLC, A) //rlca
-//opcodes[ 0x08 ] = ; //LD   (nn),SP
-//opcodes[ 0x09 ] = ;
+opcodes[ 0x08 ] = ld_ind_sp; //LD   (nn),SP
+opcodes[ 0x09 ] = addHL(B,C);
 opcodes[ 0x0A ] = ld_from_mem(A, B, C);
 opcodes[ 0x0B ] = dec16(B,C);
 opcodes[ 0x0C ] = inc(C);
@@ -582,7 +654,7 @@ opcodes[ 0x0E ] = ld(C, Immediate);
 opcodes[ 0x0F ] = shift(RRC, A);
 
 
-//opcodes[ 0x10 ] = ; //STOP - wait for keypress
+opcodes[ 0x10 ] = waitForKeypress; //STOP 
 opcodes[ 0x11 ] = ld16(D,E,Immediate);
 opcodes[ 0x12 ] = ld_to_mem(D,E,A);
 opcodes[ 0x13 ] = inc16(D,E);
@@ -591,7 +663,7 @@ opcodes[ 0x15 ] = dec(D);
 opcodes[ 0x16 ] = ld(D, Immediate);
 opcodes[ 0x17 ] = shift(RL, A) 
 opcodes[ 0x18 ] = jr;
-//opcodes[ 0x19 ] = ; //ADD HL, DE
+opcodes[ 0x19 ] = addHL(D,E); //ADD HL, DE
 opcodes[ 0x1A ] = ld_from_mem(A, D, E);
 opcodes[ 0x1B ] = dec16(D,E);
 opcodes[ 0x1C ] = inc(E);
@@ -606,15 +678,15 @@ opcodes[ 0x23 ] = inc16(H,L);
 opcodes[ 0x24 ] = inc(H);
 opcodes[ 0x25 ] = dec(H);
 opcodes[ 0x26 ] = ld(H, Immediate);
-//opcodes[ 0x27 ] = ; //DAA
+opcodes[ 0x27 ] = daa; //DAA
 opcodes[ 0x28 ] = jrZ;
-//opcodes[ 0x29 ] = ;
+opcodes[ 0x29 ] = addHL(H,L);
 opcodes[ 0x2A ] = ldi(A,HL);
 opcodes[ 0x2B ] = dec16(H,L);
 opcodes[ 0x2C ] = inc(L);
 opcodes[ 0x2D ] = dec(L);
 opcodes[ 0x2E ] = ld(L, Immediate);
-//opcodes[ 0x2F ] = ;
+opcodes[ 0x2F ] = cpl;
 
 opcodes[ 0x30 ] = jrNC;
 opcodes[ 0x31 ] = ld16(SPr, Immediate);
@@ -625,7 +697,7 @@ opcodes[ 0x35 ] = dec(HL);
 opcodes[ 0x36 ] = ld_to_mem(H,L,Immediate);
 opcodes[ 0x37 ] = scf;
 opcodes[ 0x38 ] = jrC;
-//opcodes[ 0x39 ] = ;
+opcodes[ 0x39 ] = addHL(SPr);
 opcodes[ 0x3A ] = ldd(A,HL);
 opcodes[ 0x3B ] = dec16(SPr);
 opcodes[ 0x3C ] = inc(A);
@@ -694,7 +766,7 @@ opcodes[ 0x72 ] = ld_to_mem(H,L, D);
 opcodes[ 0x73 ] = ld_to_mem(H,L, E);
 opcodes[ 0x74 ] = ld_to_mem(H,L, H);
 opcodes[ 0x75 ] = ld_to_mem(H,L, L);
-opcodes[ 0x76 ] = function halt() {}; // if interrupts disabled, stall 1 cycle, skip next instruction and continue
+opcodes[ 0x76 ] = halt;
 opcodes[ 0x77 ] = ld_to_mem(H,L, A);
 
 opcodes[ 0x78 ] = ld(A,B);
@@ -789,7 +861,7 @@ opcodes[ 0xC7 ] = rst(0x00);
 opcodes[ 0xC8 ] = retZ;
 opcodes[ 0xC9 ] = ret;
 opcodes[ 0xCA ] = jpZ;
-opcodes[ 0xCB ] = function(){ CBcodes[ MEM[ ++PC ] ](); }
+opcodes[ 0xCB ] = function(){ CBcodes[ readMem( ++PC ) ](); }
 opcodes[ 0xCC ] = callZ;
 opcodes[ 0xCD ] = call;
 opcodes[ 0xCE ] = ALU(ADC,A,Immediate);
@@ -820,7 +892,7 @@ opcodes[ 0xE4 ] = unused;
 opcodes[ 0xE5 ] = push(H,L);
 opcodes[ 0xE6 ] = ALU(AND,A,Immediate);
 opcodes[ 0xE7 ] = rst(0x20);
-//opcodes[ 0xE8 ] = ; //ADD  SP,dd
+opcodes[ 0xE8 ] = add_sp_n; //ADD  SP,dd
 opcodes[ 0xE9 ] = jpHL;
 opcodes[ 0xEA ] = ld_to_mem(Immediate, A); //LD   (nn),A
 opcodes[ 0xEB ] = unused;
@@ -837,7 +909,7 @@ opcodes[ 0xF4 ] = unused;
 opcodes[ 0xF5 ] = push(A, FLAGS);
 opcodes[ 0xF6 ] = ALU(OR,A,Immediate);
 opcodes[ 0xF7 ] = rst(0x30);
-//opcodes[ 0xF8 ] = ; //LD   HL,SP+dd
+opcodes[ 0xF8 ] = ld_hl_spdd; //LD   HL,SP+dd
 opcodes[ 0xF9 ] = ld16();
 opcodes[ 0xFA ] = ld_from_mem(A, Immediate); //LD   A,(nn)
 opcodes[ 0xFB ] = ei;
@@ -1021,10 +1093,12 @@ for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 function cpu(){
 
-for (var i=1000;i--;)
-  opcodes[ MEM[ PC ] ]();
+for (var i=1;i--;)
+  opcodes[ readMem( PC ) ]();
 
   debugData();
+
+  setTimeout(cpu,1)
 }
 
 
