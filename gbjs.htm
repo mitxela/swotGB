@@ -1,6 +1,6 @@
 <!doctype html><meta charset=utf-8>
 
-offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>
+<!--offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>-->
 <pre id=out></pre>
 
 <script>
@@ -67,8 +67,8 @@ function writeMem(addr, data){
   }
 }
 function writeMem16(addr, dataH, dataL){
-  writeMem(addr) = dataL;
-  writeMem(addr+1) = dataH;
+  writeMem(addr, dataL)
+  writeMem(addr+1, dataH)
 }
 
 const REG = new Uint8Array(8);
@@ -1136,14 +1136,25 @@ var bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0
 
 
 
-function cpu(){
+function cpu( debug){
 
-for (var i=1;i--;)
+//for (var i=1;i--;)
   opcodes[ readMem( PC ) ]();
 
-  debugData();
+  
 
   //setTimeout(cpu,1)
+}
+
+
+
+function runto(){
+  var tcount=0;
+  var targ=parseInt(prompt('Address'),16); 
+
+  while(PC<targ &&tcount++<100000) cpu();
+
+  debugData();
 }
 
 
@@ -1157,7 +1168,7 @@ function ascii(c){
 (debugData=function(){
   function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 
-  var debugOffset = parseInt(document.getElementById('dbgoff').value,16);
+  var debugOffset = PC&0xFF00;// parseInt(document.getElementById('dbgoff').value,16);
 
 
   var debug = "";
@@ -1207,6 +1218,8 @@ var openFile = function(event) {
     //Overwrite first page with bootcode
     for (var i=0;i<256;i++) ROM[i]=bootCode[i];
 
+
+    debugData();
   };
   reader.readAsArrayBuffer(input.files[0]);
 };
@@ -1218,5 +1231,6 @@ var openFile = function(event) {
 
 
 </script>
-<button onclick="cpu();return false">CPU</button>
+<button onclick="cpu(); debugData(); return false">CPU</button>
+<button onclick="runto();return false">Run To...</button>
 <input type='file' onchange='openFile(event)'>
