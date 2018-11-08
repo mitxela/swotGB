@@ -38,14 +38,23 @@ Bootcode:
 
 
 
-const MEM = new Uint8Array(65536); // Main address space
+const MEM = new Uint8Array(0x10000); // Main address space
 var FirstROMPage, ROM = new Uint8Array(512); //populate later
-var ROMbank =0; // offset 
+var ROMbank = 1; 
+var ROMbankoffset = (ROMbank-1)*0x4000;
+
+var cartRAM = new Uint8Array(0x8000); // some carts have up to 128K of ram?
+var RAMbank =0; 
+var RAMbankoffset = RAMbank*0x2000 - 0xA000;
+var RAMenabled=false;
+var MBCRamMode=0; //for MBC1
 
 function readMem(addr){
   if (addr <= 0x3fff) return ROM[ addr ];
-  if (addr <= 0x7fff) return ROM[ addr + ROMbank ];
-  //if (addr <= 0x)
+  if (addr <= 0x7fff) return ROM[ addr + ROMbankoffset ];
+
+  // Cartridge RAM
+  if (addr >= 0xA000 && addr <=0xBFFF) return cartRAM[ addr + RAMbankoffset ];
 
   return MEM[addr];
 }
@@ -58,18 +67,89 @@ function readMem16(addr){
 function writeMem(addr, data){
   //if (addr<=0x1fff) return;//RAM enable
   if (addr<=0x7fff) { 
-    //bank select stuff here
-
-    //ROMbank= data; 
-  } else {
-
-    MEM[addr] = data;
+    doMBC(addr, data);
+    return;
   }
+
+  if (addr >= 0xA000 && addr <=0xBFFF && RAMenabled){
+    cartRAM[ addr + RAMbankoffset ] = data;
+    return
+  }
+
+  MEM[addr] = data;
+  
 }
 function writeMem16(addr, dataH, dataL){
   writeMem(addr, dataL)
   writeMem(addr+1, dataH)
 }
+
+function doMBC(addr, data){
+  switch (ROM[0x147]) {
+
+  // Cartridge Type = ROM[0x147]
+
+  // 00h  ROM ONLY
+  case 0:
+    // do any type 0 carts have switchable ram?
+  break;
+
+  // 01h  MBC1
+  // 02h  MBC1+RAM
+  // 03h  MBC1+RAM+BATTERY
+  case 1: case 2: case 3:
+    if (addr <= 0x1FFF)
+      RAMenabled = (data & 0x0F == 0xA) 
+    else if (addr <= 0x3FFF){
+      data &= 0x1F;
+      if (data==0) data=1 // MBC1 translates bank 0 to bank 1 (apparently regardless of upper bits)
+      // set lowest 5 bits of bank number
+      ROMbank = (ROMbank&0x1F)|data;
+      ROMbankoffset = (ROMbank-1)*0x4000;
+    } else if (addr<=0x5fff) {
+      data &= 0x3
+      if (MBCRamMode==0) {
+        ROMbank = (ROMbank&0xE0)|data<<5;
+        ROMbankoffset = (ROMbank-1)*0x4000;
+      } else {
+        RAMbank=data;
+        RAMbankoffset = RAMbank*0x2000 - 0xA000
+      }
+    } else MBCRamMode = data&1;
+    
+  break;
+
+  // 05h  MBC2
+  // 06h  MBC2+BATTERY
+  // 08h  ROM+RAM
+  // 09h  ROM+RAM+BATTERY
+  // 0Bh  MMM01
+  // 0Ch  MMM01+RAM
+  // 0Dh  MMM01+RAM+BATTERY
+  // 0Fh  MBC3+TIMER+BATTERY
+  // 10h  MBC3+TIMER+RAM+BATTERY
+  // 11h  MBC3
+  // 12h  MBC3+RAM
+  // 13h  MBC3+RAM+BATTERY
+  // 19h  MBC5
+  // 1Ah  MBC5+RAM
+  // 1Bh  MBC5+RAM+BATTERY
+  // 1Ch  MBC5+RUMBLE
+  // 1Dh  MBC5+RUMBLE+RAM
+  // 1Eh  MBC5+RUMBLE+RAM+BATTERY
+  // 20h  MBC6
+  // 22h  MBC7+SENSOR+RUMBLE+RAM+BATTERY
+  // FCh  POCKET CAMERA
+  // FDh  BANDAI TAMA5
+  // FEh  HuC3
+  // FFh  HuC1+RAM+BATTERY
+
+    default: throw Error("Unimplemented memory controller");
+
+  }
+}
+
+
 
 const REG = new Uint8Array(8);
 
@@ -84,7 +164,7 @@ var PC = 0
 
 var SP = 0
 
-var EnableInterrupts = false
+var IME = false // Interrupt master enable
 
 
 
@@ -115,22 +195,26 @@ function ld(a,b){
   if (b==Immediate) return function(){
     REG[a] = readMem( PC+1 );
     PC+=2
+    return 8;
   }
 
   return function(){
     REG[a] = REG[b];
     PC++
+    return 4;
   }
 }
 function ld_from_mem(a, b, c){
   if (b==Immediate) return function(){
     REG[a] = readMem( readMem( PC+1 ) + (readMem( PC+2 ) <<8) )
     PC+=3
+    return 12;
   }
 
   return function(){
     REG[a] = readMem( (REG[b]<<8)+REG[c] );
     PC++
+    return 8;
   }
 }
 
@@ -138,14 +222,17 @@ function ld_to_mem(a, b, c){
   if (a==Immediate) return function(){
     writeMem( readMem( PC+1 ) + (readMem( PC+2 ) <<8), REG[b] )
     PC+=3
+    return 16;
   }
   if (c==Immediate) return function(){
     writeMem( (REG[a]<<8)+REG[b] , readMem(PC+1) );
     PC+=2
+    return 12
   }
   return function(){
     writeMem( (REG[a]<<8)+REG[b] , REG[c] );
     PC++
+    return 8
   }
 }
 
@@ -160,12 +247,14 @@ function ld16(a,b,c){
       REG[L] = s[1]
 
       PC+=3
+      return 12
     }
 
     // immediate into SP... 
     return function(){
       SP = readMem( PC+1 ) + (readMem( PC+2 ) <<8)
       PC+=3
+      return 12
     }
 
   }
@@ -175,12 +264,14 @@ function ld16(a,b,c){
     REG[b] = readMem( PC+1 )
 
     PC+=3
+    return 12
   }
 
   // ld sp, hl
   return function(){
     SP = (REG[H]<<8) + REG[L]
     PC++
+    return 8
   }
 }
 
@@ -192,6 +283,7 @@ function ldd(a,b){ //load with decrement
     REG[L]--;
     
     PC++
+    return 8
   }
 
   return function(){
@@ -201,6 +293,7 @@ function ldd(a,b){ //load with decrement
     REG[L]--;
 
     PC++
+    return 8
   }
 
 }
@@ -212,6 +305,7 @@ function ldi(a,b){ //load with increment
     REG[L]++;
     
     PC++
+    return 8
   }
 
   return function(){
@@ -221,6 +315,7 @@ function ldi(a,b){ //load with increment
     REG[L]++;
 
     PC++
+    return 8
   }
 
 }
@@ -229,20 +324,24 @@ function ldc(a,b){
   if (a==A) return function(){ //LD   A, (FF00+C)
     REG[A] = readMem( 0xFF00 + REG[C] )
     PC++
+    return 8
   }
   return function(){ //LD   (FF00+C),A
     writeMem(0xFF00 + REG[C], REG[A])
     PC++
+    return 8
   }
 }
 function ldh(a,b){
   if (a==A) return function(){ //LD   A, (FF00+n)
     REG[A] = readMem( 0xFF00 + readMem(PC+1) )
     PC+=2
+    return 12
   }
   return function(){ //LD   (FF00+n),A
     writeMem(0xFF00 + readMem(PC+1), REG[A])
     PC+=2
+    return 12
   }
 }
 
@@ -252,14 +351,17 @@ function ALU(op, a, b){
   if (b == Immediate) return function(){
     REG[A] = ALU_process_8bit( op, readMem( PC+1 ) )
     PC+=2
+    return 8
   }
   if (b == HL) return function(){
     REG[A] = ALU_process_8bit( readMem( op, (REG[H]<<8)+REG[L] ) );
     PC++
+    return 8
   }
   return function(){
     REG[A] = ALU_process_8bit( op, REG[b]);
     PC++
+    return 4
   }
 }
 
@@ -337,11 +439,13 @@ function incdec(r,offset) {
   if (r==HL) return function(){
     writeMem((REG[H]<<8)+REG[L], incdec_process_8bit( readMem( (REG[H]<<8)+REG[L] ) ,offset))
     PC++
+    return 12
   }
 
   return function(){
     REG[r]=incdec_process_8bit(REG[r],offset)
     PC++
+    return 4
   }
 }
 
@@ -358,22 +462,26 @@ function inc16(a,b) {
   if (a==SPr) return function(){
     SP++
     PC++
+    return 8
   }
   return function(){
     if (REG[b] ==255) REG[a]++;
     REG[b]++;
     PC++;
+    return 8
   }
 }
 function dec16(a,b) {
   if (a==SPr) return function(){
     SP--
     PC++
+    return 8
   }
   return function(){
     if (REG[b] ==0) REG[a]--;
     REG[b]--;
     PC++;
+    return 8
   }
 }
 
@@ -382,51 +490,61 @@ function signedOffset(b){
 }
 
 function jrNZ(){
-  if (FLAGS.Z) PC+=2
-  else PC += signedOffset(readMem(PC+1))
+  if (FLAGS.Z) {PC+=2; return 8}
+  PC += signedOffset(readMem(PC+1))
+  return 12
 }
 
 function jrNC(){
-  if (FLAGS.C) PC+=2
-  else PC += signedOffset(readMem(PC+1))
+  if (FLAGS.C) {PC+=2; return 8}
+  PC += signedOffset(readMem(PC+1))
+  return 12
 }
 
 function jrZ(){
-  if (FLAGS.Z) PC += signedOffset(readMem(PC+1))
-  else PC+=2
+  if (!FLAGS.Z) {PC+=2; return 8}
+  PC += signedOffset(readMem(PC+1));
+  return 12
 }
 
 function jrC(){
-  if (FLAGS.C) PC += signedOffset(readMem(PC+1))
-  else PC+=2
+  if (!FLAGS.C) {PC+=2; return 8}
+  PC += signedOffset(readMem(PC+1))
 }
 
 function jr(){ //unconditional relative
   PC += signedOffset(readMem(PC+1))
+  return 12
 }
 
 function jp(){ //unconditional absolute
   PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  return 16
 }
 function jpNZ(){
-  if (FLAGS.Z) PC+=3
-  else PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  if (FLAGS.Z) {PC+=3; return 12}
+  PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  return 16
 }
 function jpNC(){
-  if (FLAGS.C) PC+=3
-  else PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  if (FLAGS.C) {PC+=3; return 12}
+  PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  return 16
 }
 function jpZ(){
-  if (FLAGS.Z) PC = readMem(PC+1)+(readMem(PC+2)<<8)
-  else PC+=3
+  if (!FLAGS.Z) {PC+=3; return 12}
+  PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  return 16
 }
 function jpC(){
-  if (FLAGS.C) PC = readMem(PC+1)+(readMem(PC+2)<<8)
-  else PC+=3
+  if (!FLAGS.C) {PC+=3; return 12}
+  PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  return 16
 }
 
 function jpHL(){
   PC = (REG[H]<<8)+REG[L]
+  return 4
 }
 
 function push(a,b) {
@@ -435,11 +553,13 @@ function push(a,b) {
     SP -=2
     writeMem16(SP, REG[A], flags)
     PC++
+    return 16
   }
   return function(){
     SP-=2
     writeMem16(SP, REG[a], REG[b])
     PC++
+    return 16
   }
 }
 
@@ -453,6 +573,7 @@ function pop(a,b) {
     FLAGS.C = s[1] & (1<<4) == 1
     SP+=2
     PC++
+    return 12
   }
   return function(){
     var s = readMem16(SP);
@@ -460,6 +581,7 @@ function pop(a,b) {
     REG[b] = s[1]
     SP+=2
     PC++
+    return 12
   }
 }
 
@@ -468,58 +590,66 @@ function call(){
   var npc = PC+3
   writeMem16(SP, npc>>8, npc&0xFF)
   PC = readMem(PC+1)+(readMem(PC+2)<<8)
+  return 24
 }
 function callNZ(){
-  if (FLAGS.Z) PC+=3
-  else call()
+  if (FLAGS.Z) {PC+=3; return 12}
+  return call()
 }
 function callNC(){
-  if (FLAGS.C) PC+=3
-  else call()
+  if (FLAGS.C) {PC+=3; return 12}
+  return call()
 }
 function callZ(){
-  if (FLAGS.Z) call()
-  else PC+=3
+  if (!FLAGS.Z) {PC+=3; return 12}
+  return call()
 }
 function callC(){
-  if (FLAGS.C) call()
-  else PC+=3
+  if (!FLAGS.C) {PC+=3; return 12}
+  return call()
 }
 
 function ret(){
   var s = readMem16(SP);
   SP+=2
   PC = (s[0]<<8)+s[1]
+  return 16
 }
 function retNZ(){
-  if (FLAGS.Z) PC++
-  else ret()
+  if (FLAGS.Z) {PC++; return 8}
+  ret()
+  return 20
 }
 function retNC(){
-  if (FLAGS.C) PC++
-  else ret()
+  if (FLAGS.C) {PC++; return 8}
+  ret()
+  return 20
 }
 function retZ(){
-  if (FLAGS.Z) ret()
-  else PC++
+  if (!FLAGS.Z) {PC++; return 8}
+  ret()
+  return 20
 }
 function retC(){
-  if (FLAGS.C) ret()
-  else PC++
+  if (!FLAGS.C) {PC++; return 8}
+  ret()
+  return 20
 }
 function reti(){
-  ret()
-  EnableInterrupts = true
+  IME = true
+  return ret()
 }
 
 function ei(){
-  EnableInterrupts = true
+  IME = true
   PC++
+  return 4
 }
 
 function di(){
-  EnableInterrupts = false
+  IME = false
   PC++
+  return 4
 }
 
 function rst(a){
@@ -528,6 +658,7 @@ function rst(a){
     var npc = PC+1 // datasheets say to push the current program counter, but surely it means the return address
     writeMem16(SP, npc>>8, npc&0xFF)
     PC = a
+    return 16
   }
 }
 
@@ -544,10 +675,12 @@ function shift(op, a){
     var addr= (REG[H]<<8)+REG[L];
     writeMem( addr , shift_process( op, readMem(addr) ) )
     PC++
+    return 16
   }
   return function(){
     REG[a] = shift_process(op, REG[a])
     PC++
+    return 8
   }
 }
 
@@ -597,18 +730,21 @@ function ccf(){
   FLAGS.H =false
   FLAGS.C =!FLAGS.C
   PC++
+  return 4
 }
 function scf(){
   FLAGS.N =false
   FLAGS.H =false
   FLAGS.C =true
   PC++
+  return 4
 }
 function cpl(){
   REG[A] = ~REG[A]
   FLAGS.N =true
   FLAGS.H =true
   PC++
+  return 4
 }
 function addHL(a,b){
   if (a==SPr) return function(){
@@ -620,6 +756,7 @@ function addHL(a,b){
     FLAGS.C = (h>255)
     FLAGS.N=false
     PC++
+    return 8
   }
   return function(){
     var l = REG[L] + REG[b];
@@ -630,6 +767,7 @@ function addHL(a,b){
     FLAGS.C = (h>255)
     FLAGS.N=false
     PC++
+    return 8
   }
 }
 function daa(){
@@ -651,10 +789,12 @@ function daa(){
 
   REG[A]=a;
   PC++
+  return 4
 }
 function ld_ind_sp(){
   writeMem16( readMem(PC+1)+(readMem(PC+2)<<8) , SP>>8, SP&0xFF );
   PC+=2
+  return 20
 }
 function ld_hl_spdd(){
   var n = SP + signedOffset(readMem(PC+1))
@@ -664,6 +804,7 @@ function ld_hl_spdd(){
   FLAGS.Z=false
   //H, C Flags ambiguous in pdf
   PC+=2
+  return 12
 }
 function add_sp_n(){
   SP += signedOffset(readMem(PC+1))
@@ -671,17 +812,20 @@ function add_sp_n(){
   FLAGS.Z=false
   //H, C Flags ambiguous
   PC+=2
+  return 16
 }
 
 function halt() {
 // if interrupts disabled, stall 1 cycle, skip next instruction and continue
-  if (!EnableInterrupts) PC++
+  if (!IME) PC++
+  return 4
 }; 
-function waitForKeypress(){
+function stop(){
   //TODO
+  return 4
 }
 
-const unused = function(){}; //GMB locks when called
+const unused = function(){ return 4 }; //GMB locks when called
 
 opcodes[ 0x00 ] = function nop(){ PC++ };
 opcodes[ 0x01 ] = ld16(B,C,Immediate);
@@ -701,7 +845,7 @@ opcodes[ 0x0E ] = ld(C, Immediate);
 opcodes[ 0x0F ] = shift(RRC, A);
 
 
-opcodes[ 0x10 ] = waitForKeypress; //STOP 
+opcodes[ 0x10 ] = stop;
 opcodes[ 0x11 ] = ld16(D,E,Immediate);
 opcodes[ 0x12 ] = ld_to_mem(D,E,A);
 opcodes[ 0x13 ] = inc16(D,E);
@@ -1134,12 +1278,25 @@ var bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0
 
 
 
-
+var cycles=0;
 
 function cpu( debug){
+  
+  if (IME) {
+    // $FFFF - IE - Interrupt Enable (R/W)
+    // $FF0F - IF - Interrupt Flag (R/W)
+/*
+    if ( enable && flag set ) { 
 
-//for (var i=1;i--;)
-  opcodes[ readMem( PC ) ]();
+      writeMem16(SP-=2, PC>>8, PC&0xFF)
+      PC = vector; 
+
+      IME=false
+    }
+*/
+  }
+
+  cycles += opcodes[ readMem( PC ) ]();
 
   
 
@@ -1160,9 +1317,13 @@ function runto(){
 
 
 function ascii(c){
-  return (c>=32&&c<=126) ?
-    String.fromCharCode(c).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    :"."
+//  return (c>=32&&c<=126) ?
+//    String.fromCharCode(c).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+//    :"."
+
+  return ".................................!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~.€.‚ƒ„…†‡ˆ‰Š‹Œ.Ž..‘’“”•–—˜™š›œ.žŸ ¡¢£¤¥¦§¨©ª«¬.®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ".charAt(c)
+  .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
 }
 
 (debugData=function(){
@@ -1214,6 +1375,8 @@ var openFile = function(event) {
   reader.onload = function(){
     ROM = new Uint8Array(reader.result);
     FirstROMPage = ROM.slice(0,256)
+
+
 
     //Overwrite first page with bootcode
     for (var i=0;i<256;i++) ROM[i]=bootCode[i];
