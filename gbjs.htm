@@ -1,5 +1,6 @@
 <!doctype html><meta charset=utf-8>
 
+offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>
 <pre id=out></pre>
 
 <script>
@@ -38,13 +39,14 @@ Bootcode:
 
 
 const MEM = new Uint8Array(65536); // Main address space
-var ROM = new Uint8Array(256); //populate later
+var FirstROMPage, ROM = new Uint8Array(512); //populate later
 var ROMbank =0; // offset 
 
 function readMem(addr){
-  //if (addr <= 0x3fff) return ROM[ addr ];
-  //if (addr <= 0x7fff) return ROM[ addr + ROMbank ];
-  
+  if (addr <= 0x3fff) return ROM[ addr ];
+  if (addr <= 0x7fff) return ROM[ addr + ROMbank ];
+  //if (addr <= 0x)
+
   return MEM[addr];
 }
 
@@ -54,13 +56,15 @@ function readMem16(addr){
 }
 
 function writeMem(addr, data){
-  if (addr<=0x1fff) return;//RAM enable
-  if (addr<=0x3fff) { //Rom bank number
-    ROMbank= data; //different for different MBCs
-    return;
-  }
+  //if (addr<=0x1fff) return;//RAM enable
+  if (addr<=0x7fff) { 
+    //bank select stuff here
 
-  MEM[addr] = data;
+    //ROMbank= data; 
+  } else {
+
+    MEM[addr] = data;
+  }
 }
 function writeMem16(addr, dataH, dataL){
   writeMem(addr) = dataL;
@@ -629,6 +633,9 @@ function addHL(a,b){
   }
 }
 function daa(){
+//http://gbdev.gg8.se/wiki/articles/DAA
+//https://github.com/mamedev/mame/blob/master/src/devices/cpu/z80/z80.cpp#L847
+
   var a = REG[A], c=false;
   if (FLAGS.N) {
     if (FLAGS.H) a-=0x06;
@@ -1115,15 +1122,13 @@ for (var i=0;i<8;i++){
 
 
 
-bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0C 3E F3 E2 32 3E 77 77 3E FC E0 47 11 04 01 21 10 80 1A CD 95 00 CD 96 00 13 7B FE 34 20 F3 11 D8 00 06 08 1A 13 22 23 05 20 F9 3E 19 EA 10 99 21 2F 99 0E 0C 3D 28 08 32 0D 20 F9 2E 0F 18 F3 67 3E 64 57 E0 42 3E 91 E0 40 04 1E 02 0E 0C F0 44 FE 90 20 FA 0D 20 F7 1D 20 F2 0E 13 24 7C 1E 83 FE 62 28 06 1E C1 FE 64 20 06 7B E2 0C 3E 87 E2 F0 42 90 E0 42 15 20 D2 05 20 4F 16 20 18 CB 4F 06 04 C5 CB 11 17 C1 CB 11 17 05 20 F5 22 23 22 23 C9 CE ED 66 66 CC 0D 00 0B 03 73 00 83 00 0C 00 0D 00 08 11 1F 88 89 00 0E DC CC 6E E6 DD DD D9 99 BB BB 67 63 6E 0E EC CC DD DC 99 9F BB B9 33 3E 3C 42 B9 A5 B9 A5 42 3C 21 04 01 11 A8 00 1A 13 BE 20 FE 23 7D FE 34 20 F5 06 19 78 86 23 05 20 FB 86 20 FE 3E 01 E0 50".split(" ")
+var bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0C 3E F3 E2 32 3E 77 77 3E FC E0 47 11 04 01 21 10 80 1A CD 95 00 CD 96 00 13 7B FE 34 20 F3 11 D8 00 06 08 1A 13 22 23 05 20 F9 3E 19 EA 10 99 21 2F 99 0E 0C 3D 28 08 32 0D 20 F9 2E 0F 18 F3 67 3E 64 57 E0 42 3E 91 E0 40 04 1E 02 0E 0C F0 44 FE 90 20 FA 0D 20 F7 1D 20 F2 0E 13 24 7C 1E 83 FE 62 28 06 1E C1 FE 64 20 06 7B E2 0C 3E 87 E2 F0 42 90 E0 42 15 20 D2 05 20 4F 16 20 18 CB 4F 06 04 C5 CB 11 17 C1 CB 11 17 05 20 F5 22 23 22 23 C9 CE ED 66 66 CC 0D 00 0B 03 73 00 83 00 0C 00 0D 00 08 11 1F 88 89 00 0E DC CC 6E E6 DD DD D9 99 BB BB 67 63 6E 0E EC CC DD DC 99 9F BB B9 33 3E 3C 42 B9 A5 B9 A5 42 3C 21 04 01 11 A8 00 1A 13 BE 20 FE 23 7D FE 34 20 F5 06 19 78 86 23 05 20 FB 86 20 FE 3E 01 E0 50".split(" ").map(x => parseInt(x,16))
 
 
 //testProg = "3E 55 06 0F A0 D6 01 20 FB 3E 55".split(" ")
 //testProg = "3E 55 17 C2 02 00".split(" ")
 
-testProg = bootCode
-
-for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
+//for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 
 
@@ -1138,32 +1143,53 @@ for (var i=1;i--;)
 
   debugData();
 
-  setTimeout(cpu,1)
+  //setTimeout(cpu,1)
 }
 
 
 
+function ascii(c){
+  return (c>=32&&c<=126) ?
+    String.fromCharCode(c).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    :"."
+}
+
 (debugData=function(){
   function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 
-  var debug = "Mem: ";
-  for (var j=0;j<8;j++) {
-    for (var i=0;i<32;i++) 
-      debug+= PC==(i+j*32) ? "<span style='color:red'>"+f(MEM[(i+j*32)])+"</span> ": f(MEM[(i+j*32)]) + " ";
-    debug+="\n     "
-  }
-  debug+="\n\nPC: "+ f(PC,4)
-  debug+="\n\nSP: "+ f(SP,4)
-  debug+="\n\nFlags\nZ: "+FLAGS.Z+"\nN: "+FLAGS.N+"\nH: "+FLAGS.N+"\nC: "+FLAGS.C+"\n"
-  
-  debug+="\nA: "+ f(REG[A])
-  debug+="\nB: "+ f(REG[B])
-  debug+="\nC: "+ f(REG[C])
-  debug+="\nD: "+ f(REG[D])
-  debug+="\nE: "+ f(REG[E])
-  debug+="\nH: "+ f(REG[H])
-  debug+="\nL: "+ f(REG[L])
+  var debugOffset = parseInt(document.getElementById('dbgoff').value,16);
 
+
+  var debug = "";
+  for (var j=0;j<16;j++) {
+
+    debug+= "$"+f(debugOffset + j*16,4)+"   "
+    for (var i=0;i<16;i++) {
+      var q=i+j*16 + debugOffset;
+      debug+="<span title='$"+ f(q,4) +"'"
+      debug+= PC==q ? " style='color:red'>":">"
+      debug+=f(readMem(q))+"</span>"
+ 
+      debug+=(i==7?"|":" ")
+      
+    }
+    debug+="|  "
+    for (var i=0;i<16;i++) {
+      var c=readMem(i+j*16 + debugOffset)
+      debug+= ascii(c);
+    }
+    
+    
+    debug+="\n"
+  }
+
+
+  debug+="\nAF: "+ f(REG[A]) + f((FLAGS.Z << 7) + (FLAGS.N << 6) + (FLAGS.H << 5) + (FLAGS.C << 4))+"        Z: "+FLAGS.Z
+  debug+="\nBC: "+ f(REG[B])+ f(REG[C])+"        N: "+FLAGS.N
+  debug+="\nDE: "+ f(REG[D])+ f(REG[E])+"        H: "+FLAGS.H
+  debug+="\nHL: "+ f(REG[H])+ f(REG[L])+"        C: "+FLAGS.C
+  debug+="\nSP: "+ f(SP,4)
+  debug+="\nPC: "+ f(PC,4)
 
   out.innerHTML=debug;
 })();
@@ -1175,7 +1201,11 @@ var openFile = function(event) {
 
   var reader = new FileReader();
   reader.onload = function(){
-    ROM = reader.result;
+    ROM = new Uint8Array(reader.result);
+    FirstROMPage = ROM.slice(0,256)
+
+    //Overwrite first page with bootcode
+    for (var i=0;i<256;i++) ROM[i]=bootCode[i];
 
   };
   reader.readAsArrayBuffer(input.files[0]);
