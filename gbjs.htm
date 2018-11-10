@@ -105,6 +105,7 @@ var RAMenabled=false;
 var MBCRamMode=0; //for MBC1
 
 var divPrescaler=0, timerPrescaler=0, timerSpeed=1, timerEnable=false;
+var LCD_enabled = false, LCD_lastmode=1, LCD_scan=0;
 
 function readMem(addr){
   if (addr <= 0x3fff) return ROM[ addr ];
@@ -151,10 +152,9 @@ function writeMem(addr, data){
     var cc = data&(1<<7);
     if (LCD_enabled !=cc) {
       LCD_enabled=cc;
-      if (!LCD_enabled){ 
+      if (!LCD_enabled){ // Disabling the display sets it to mode 1
         LCD_scan=0;
-        MEM[0xFF41] &= 0x3;
-        MEM[0xFF41] |= 0x1;
+        MEM[0xFF41] = (MEM[0xFF41] & 0x3) +1;
 
       }
     }
@@ -480,23 +480,23 @@ function ALU_process_8bit(op, b){
 
   switch (op){
     case ADD: 
+      FLAGS.H = !!(((REG[A]&0x0F) + (b&0x0F)) & 0x10)
       result += b;
-      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
     break;
     case ADC:
+      FLAGS.H = !!(((REG[A]&0x0F) + (b&0x0F) + FLAGS.C) & 0x10)
       result += b + FLAGS.C;
-      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
     break;
     case SUB: 
       result -= b;
       FLAGS.N = true;
-      FLAGS.H = (REG[A]^result^b)&(1<<4) !=0;
+      FLAGS.H = !!(((REG[A]&0x0F) - (b&0x0F)) & 0x10)
     break;
 
     case CP:
       result -= b;
       FLAGS.N = true;
-      FLAGS.H = ((REG[A]^result^b)&(1<<4)) !=0;
+      FLAGS.H = !!(((REG[A]&0x0F) - (b&0x0F)) & 0x10)
       FLAGS.Z = (result == 0)
       FLAGS.C = result > 255 || result < 0;
     return REG[A];
@@ -504,7 +504,7 @@ function ALU_process_8bit(op, b){
     case SBC:
       result -= b + FLAGS.C;
       FLAGS.N = true;
-      FLAGS.H = (REG[A] &(1<<4)) != (result &(1<<4))
+      FLAGS.H = !!(((REG[A]&0x0F) - (b&0x0F) - FLAGS.C) & 0x10)
     break;
     case AND:
       result &= b;
@@ -1384,7 +1384,6 @@ var bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0
 // DIV speed 16384 => CPU/256
 
 
-var LCD_enabled = false, LCD_lastmode=1, LCD_scan=0;
 
 
 function triggerInterrupt(vector){
@@ -1405,13 +1404,14 @@ function cpu(){
       var cycles = opcodes[tmp]();
       if (typeof cycles ==="undefined") throw Error('cycles!')
   
-
   // DIV  = 0xFF04 //Divider Register (R/W)
   // TIMA = 0xFF05 //Timer counter (R/W)
   // TMA  = 0xFF06 //Timer Modulo (R/W)
   // TAC  = 0xFF07 //Timer Control (R/W)
 
   //DIV register
+  // Seems to be running very slightly faster than BGB, possibly 
+  // some instructions are returning the wrong number
   if ((divPrescaler += cycles) >255) {
     divPrescaler-=256
     MEM[0xFF04]++;
@@ -1581,7 +1581,7 @@ const ioMap={
 0xFF24:"NR50 ",
 0xFF25:"NR51 ",
 0xFF26:"NR52 ",
-0xFF3F:"Wave Pattern RAM",
+0xFF3F:"Wave Pattern",
 0xFF40:"LCDC ",
 0xFF41:"STAT ",
 0xFF42:"SCY ",
@@ -1606,17 +1606,17 @@ const ioMap={
 //0xFF69:"BCPD/BGPD ",
 //0xFF6A:"OCPS/OBPI ",
 //0xFF6B:"OCPD/OBPD ",
-0xFF6C:"Undocumented (FEh) ",
+//0xFF6C:"Undocumented (FEh) ",
 //0xFF70:"SVBK ",
-0xFF72:"Undocumented (00h) ",
-0xFF73:"Undocumented (00h) ",
-0xFF74:"Undocumented (00h) ",
-0xFF75:"Undocumented (8Fh) ",
-0xFF76:"Undocumented (00h) ",
-0xFF77:"Undocumented (00h) ",
+//0xFF72:"Undocumented (00h) ",
+//0xFF73:"Undocumented (00h) ",
+//0xFF74:"Undocumented (00h) ",
+//0xFF75:"Undocumented (8Fh) ",
+//0xFF76:"Undocumented (00h) ",
+//0xFF77:"Undocumented (00h) ",
 0xFFFF:"IE "
 }
-for (var i=0xFF00;i<=0xFF7F;i++) if (!ioMap[i]) ioMap[i]="";
+
 
 
 
@@ -1681,9 +1681,9 @@ function ascii(c){
   out.innerHTML=debug;
 
   debug=""
-  for (var i=0xFF00;i<=0xFF7F;i++) {
+  for (var i in ioMap) {
     var r=f(readMem(i));
-    debug+="$"+f(i,4)+": "+(r==0?"--":r)+" - "+ioMap[i]+" \n"
+    debug+="$"+f(i*1,4)+": "+(r==0?"--":r)+" - "+ioMap[i]+" \n"
   }
   io.innerHTML=debug
 
