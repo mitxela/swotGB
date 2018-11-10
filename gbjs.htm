@@ -106,6 +106,7 @@ var MBCRamMode=0; //for MBC1
 
 var divPrescaler=0, timerPrescaler=0, timerSpeed=1, timerEnable=false;
 var LCD_enabled = false, LCD_lastmode=1, LCD_scan=0;
+var tileData =new Uint8Array((0x9800 - 0x8000)/16);
 
 function readMem(addr){
   if (addr <= 0x3fff) return ROM[ addr ];
@@ -129,6 +130,23 @@ function writeMem(addr, data){
     return;
   }
 
+/*
+  if (addr<=0x97ff) { //Tile & sprite data
+    MEM[addr] = data;
+    var sb = addr&0xFFFE; //take first byte of pair
+    var row1 = MEM[sb], row2 = MEM[sb+1];
+
+    //var tilenumber = 
+
+    //tiledata[]
+
+    
+    return;
+  }*/
+
+
+
+
   if (addr >= 0xA000 && addr <=0xBFFF && RAMenabled){
     cartRAM[ addr + RAMbankoffset ] = data;
     return
@@ -147,11 +165,12 @@ function writeMem(addr, data){
   //debug
   //if ((addr>>8) == 0xFF) console.log("IO write: $"+f(addr,4)+" - "+f(data))
 
+
   //LCD control
   if (addr==0xFF40) {
     var cc = data&(1<<7);
     if (LCD_enabled !=cc) {
-      LCD_enabled=cc;
+      LCD_enabled=!!cc;
       if (!LCD_enabled){ // Disabling the display sets it to mode 1
         LCD_scan=0;
         MEM[0xFF41] = (MEM[0xFF41] & 0x3) +1;
@@ -1391,7 +1410,7 @@ function plotTileData(){
 
   var i = 0x8010;
 
-  var bgpallet = [
+  var bgpalette = [
     (MEM[0xFF47])&3,
     (MEM[0xFF47]>>2)&3,
     (MEM[0xFF47]>>4)&3,
@@ -1413,11 +1432,11 @@ function plotTileData(){
 
     ]
     for (var k=0;k<8;k++)
-      dpixels[k+ 160*j] = bgpallet[pix[k]]
+      dpixels[k+ 160*j] = bgpalette[pix[k]] 
     i+=2;
   }
 
-  //look up pallet
+  //look up palette
   
   renderDisplayCanvas();
 
@@ -1434,7 +1453,7 @@ function plotTileData(){
 
 
 
-
+var usedTiles = {}
 
 
 
@@ -1515,19 +1534,21 @@ function cpu(){
   if (LCD_enabled){
     LCD_scan += cycles;
     
-    var mode=0, coincidence=false;
+    var mode=0, coincidence=false, draw=false;
     if (LCD_scan <= 80) mode = 2
     else if (LCD_scan <= 252) mode = 3
-    else if (LCD_scan <= 456) mode = 0
+    else if (LCD_scan < 456) mode = 0
     else {
+      mode = 2
       LCD_scan -= 456;
       MEM[0xFF44] ++;
+      draw=true;
       coincidence = (MEM[0xFF44] == MEM[0xFF45]);
       if (MEM[0xFF44] > 153) MEM[0xFF44] =0;
     }
 
     if (MEM[0xFF44] >= 144) mode = 1; //vblank
-    else {
+    else if (draw){
       //Draw scanline
 
       //  FF40 - LCDC - LCD Control (R/W)
@@ -1542,7 +1563,12 @@ function cpu(){
       //  Bit 0 - BG Display (for CGB see below) (0=Off, 1=On)
 
       if ( MEM[0xFF40] & 1 ) { // BG enabled
-
+        var bgpalette = [
+          (MEM[0xFF47])&3,
+          (MEM[0xFF47]>>2)&3,
+          (MEM[0xFF47]>>4)&3,
+          (MEM[0xFF47]>>6)&3
+        ]
         // all this can probably be cached
 
         // BG Tile map display select
@@ -1552,11 +1578,11 @@ function cpu(){
         var tileOffset, tileSigned;
         // Tile Data Select
         if (MEM[0xFF40]&(1<<4)) {
-          tileOffset =  0x8800;
-          tileSigned = true;
-        } else {
           tileOffset =  0x8000;
           tileSigned = false;
+        } else {
+          tileOffset =  0x8800;
+          tileSigned = true;
         }
         
 
@@ -1572,45 +1598,59 @@ function cpu(){
         // tile column = pixel column >> 3
         
           var y = (MEM[0xFF44] + MEM[0xFF42] );
+
           var x = MEM[0xFF43]
-          var tileNum = MEM[ bgTileMapAddr + (y&0x03)*32 + (x&0x03) ] 
-          if (!tileSigned)
+          var tileNum = MEM[ bgTileMapAddr + (~~(y/8))*32 + ~~(x/8) ] 
+          usedTiles[tileNum] = (usedTiles[tileNum] || 0) + 1;
+
+          if (!tileSigned){
             var tileptr = tileOffset+tileNum*16;
-          else{}
+          }else{
+            var tileptr = tileOffset+signedOffset(tileNum)*16;
+          }
 
         var yoff = y%8;
         var xoff = x%8;
         function grabTile(){
           var d1 = MEM[tileptr + yoff*2], d2 = MEM[tileptr + yoff*2 +1]
           return [ 
-            2*(d1&1)+(d2&1),
-            (2*(d1&1)+(d2&1))/2,
-            (2*(d1&1)+(d2&1))/4,
-            (2*(d1&1)+(d2&1))/8,
-            (2*(d1&1)+(d2&1))/16,
-            (2*(d1&1)+(d2&1))/32,
-            (2*(d1&1)+(d2&1))/64,
-            (2*(d1&1)+(d2&1))/128
-          ]
+      ((d1&128)+ 2*(d2&128)) >>7,
+      ((d1&64) + 2*(d2&64)) >>6,
+      ((d1&32) + 2*(d2&32)) >>5,
+      ((d1&16) + 2*(d2&16)) >>4,
+      ((d1&8)  + 2*(d2&8)) >>3,
+      ((d1&4)  + 2*(d2&4)) >>2,
+      ((d1&2)  + 2*(d2&2)) >>1,
+      ((d1&1)  + 2*(d2&1))
+         ]
         }
         var pix = grabTile();
         var dpy = MEM[0xFF44]*160;
         
 
         for (var i=0;i<160;i++) {
-          dpixels[dpy + i] = pix[ xoff++ ]
+          dpixels[dpy + i] = bgpalette[pix[ xoff++ ]]
+
           if (xoff==8) {
-            tileptr+=16;
-            grabTile();
+            x+=8;
+            tileNum = MEM[ bgTileMapAddr + (~~(y/8))*32 + ~~(x/8) ] 
+            usedTiles[tileNum] = (usedTiles[tileNum] || 0) + 1;
+            if (!tileSigned){
+              var tileptr = tileOffset+tileNum*16;
+            }else{
+              var tileptr = tileOffset+signedOffset(tileNum)*16;
+            }
+
+            pix = grabTile();
             xoff=0;
           }
 
         }
 
-        /*
-load all tiles in this row
+        
+//load all tiles in this row
 
-*/
+
 
 
       }
@@ -1636,6 +1676,10 @@ load all tiles in this row
         if (MEM[0xFF41] & (1<<3)) MEM[0xFF0F] |= 1<<1;
       } else if (mode == 1) {
         if (MEM[0xFF41] & (1<<4)) MEM[0xFF0F] |= 1<<1;
+
+        renderDisplayCanvas();
+        debugData();
+
       } else if (mode == 2){
         if (MEM[0xFF41] & (1<<5)) MEM[0xFF0F] |= 1<<1;
       }
@@ -1681,18 +1725,30 @@ load all tiles in this row
   }
 
 
-
+  return cycles
 }
 
 
-var targ=0
+var targ=0x8e
 function runto(){
   var tcount=0;
   targ=parseInt(prompt('Address', f(targ,4)),16); 
 
-  while(PC!=targ &&tcount++<100000) cpu();
+run()
 
-  debugData();
+}
+
+
+function run(){
+
+  var todo = 4194304/60;
+  while (todo>0){
+    todo -= cpu();
+    if (PC == targ) break;
+  }
+
+  if (PC != targ) window.requestAnimationFrame(run)
+  else debugData()
 }
 
 
