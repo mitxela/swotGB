@@ -189,6 +189,9 @@ function writeMem(addr, data){
   // LY - write causes reset
   if (addr==0xFF44) { MEM[0xFF44] = 0; return }
 
+  // disable bootrom
+  if (addr==0xFF50) { for (var i=0;i<256;i++) ROM[i]=FirstROMPage[i]; return}
+
 
 
   MEM[addr] = data;
@@ -475,7 +478,7 @@ function ALU(op, a, b){
     return 8
   }
   if (b == HL) return function(){
-    REG[A] = ALU_process_8bit( readMem( op, (REG[H]<<8)+REG[L] ) );
+    REG[A] = ALU_process_8bit( op, readMem( (REG[H]<<8)+REG[L] ) );
     PC++
     return 8
   }
@@ -547,7 +550,7 @@ function ALU_process_8bit(op, b){
 
   }
 
-  FLAGS.Z = (result == 0)
+  FLAGS.Z = ((result&0xff) == 0)
   FLAGS.C = result > 255 || result < 0;
 
   return result&0xFF;
