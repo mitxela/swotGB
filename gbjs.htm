@@ -54,6 +54,28 @@ function renderDisplayCanvas() {
 }
 
 
+
+
+// We have infinite RAM
+const pixelDecoder=[]
+for (var d1 = 0; d1<256; d1++) {
+  pixelDecoder[d1]=[]
+  for (var d2 = 0; d2<256; d2++)
+    pixelDecoder[d1][d2] = [
+      ((d1&128)+ 2*(d2&128)) >>7,
+      ((d1&64) + 2*(d2&64)) >>6,
+      ((d1&32) + 2*(d2&32)) >>5,
+      ((d1&16) + 2*(d2&16)) >>4,
+      ((d1&8)  + 2*(d2&8)) >>3,
+      ((d1&4)  + 2*(d2&4)) >>2,
+      ((d1&2)  + 2*(d2&2)) >>1,
+      ((d1&1)  + 2*(d2&1))
+    ]
+}
+
+
+
+
 /*
 Memory map
 
@@ -173,6 +195,7 @@ function writeMem(addr, data){
     var cc = data&(1<<7);
     if (LCD_enabled !=cc) {
       LCD_enabled=!!cc;
+console.log('lcd ->',LCD_enabled)
       if (!LCD_enabled){ // Disabling the display sets it to mode 1
         LCD_scan=0;
         MEM[0xFF41] = (MEM[0xFF41] & 0x3) +1;
@@ -767,6 +790,7 @@ function reti(){
 }
 
 function ei(){
+  // This needs wait until the end of the next instruction
   IME = true
   PC++
   return 4
@@ -1618,16 +1642,7 @@ function cpu(){
         var xoff = x%8;
         function grabTile(){
           var d1 = MEM[tileptr + yoff*2], d2 = MEM[tileptr + yoff*2 +1]
-          return [ 
-      ((d1&128)+ 2*(d2&128)) >>7,
-      ((d1&64) + 2*(d2&64)) >>6,
-      ((d1&32) + 2*(d2&32)) >>5,
-      ((d1&16) + 2*(d2&16)) >>4,
-      ((d1&8)  + 2*(d2&8)) >>3,
-      ((d1&4)  + 2*(d2&4)) >>2,
-      ((d1&2)  + 2*(d2&2)) >>1,
-      ((d1&1)  + 2*(d2&1))
-         ]
+          return pixelDecoder[d1][d2]
         }
         var pix = grabTile();
         var dpy = MEM[0xFF44]*160;
