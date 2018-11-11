@@ -1579,46 +1579,37 @@ function cpu(){
         // pixel column = FF43
         // tile column = pixel column >> 3
         
-          var y = (MEM[0xFF44] + MEM[0xFF42] );
-          var x = MEM[0xFF43]
+        var y = (MEM[0xFF44] + MEM[0xFF42]) &0xFF;
 
-          var tileNum = MEM[ bgTileMapAddr + ~~(x/8) ] 
-          
-          var yoff = y%8;
-          var xoff = x%8;
+        var x    = MEM[0xFF43] >>3;
+        var xoff = MEM[0xFF43] & 7;
 
-          // Y doesn't change throughout a scanline
-          bgTileMapAddr += (~~(y/8))*32; 
-          tileOffset+=yoff*2;
+        // Y doesn't change throughout a scanline
+        bgTileMapAddr += (~~(y/8))*32; 
+        tileOffset+=(y&7)*2;
 
+        var tileNum = MEM[ bgTileMapAddr + x ] 
+
+        function grabTile(){
           if (!tileSigned){
             var tileptr = tileOffset+tileNum*16;
           }else{
             var tileptr = tileOffset+signedOffset(tileNum)*16;
           }
-
-
-        function grabTile(){
           var d1 = MEM[tileptr ], d2 = MEM[tileptr +1]
           return pixelDecoder[d1][d2]
         }
+
         var pix = grabTile();
+
         var dpy = MEM[0xFF44]*160;
         
-
         for (var i=0;i<160;i++) {
           dpixels[dpy + i] = bgpalette[pix[ xoff++ ]]
 
           if (xoff==8) {
-            x+=8;
-            tileNum = MEM[ bgTileMapAddr  + ~~(x/8) ] 
-            
-            if (!tileSigned){
-              var tileptr = tileOffset+tileNum*16;
-            }else{
-              var tileptr = tileOffset+signedOffset(tileNum)*16;
-            }
-
+            x = (x+1)&0x1F; //wrap horizontally in tile map
+            tileNum = MEM[ bgTileMapAddr  + x ] 
             pix = grabTile();
             xoff=0;
           }
