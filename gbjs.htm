@@ -716,10 +716,10 @@ function pop(a,b) {
   if (a==A) return function(){
     var s = readMem16(SP);
     REG[A] = s[0]
-    FLAGS.Z = s[1] & (1<<7) == 1
-    FLAGS.N = s[1] & (1<<6) == 1
-    FLAGS.H = s[1] & (1<<5) == 1
-    FLAGS.C = s[1] & (1<<4) == 1
+    FLAGS.Z = (s[1] & (1<<7)) != 0
+    FLAGS.N = (s[1] & (1<<6)) != 0
+    FLAGS.H = (s[1] & (1<<5)) != 0
+    FLAGS.C = (s[1] & (1<<4)) != 0
     SP+=2
     PC++
     return 12
@@ -1617,7 +1617,7 @@ function cpu(){
         }
 
         
-//load all tiles in this row
+
 
 
 
