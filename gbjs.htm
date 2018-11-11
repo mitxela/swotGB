@@ -195,8 +195,8 @@ function writeMem(addr, data){
     var cc = data&(1<<7);
     if (LCD_enabled !=cc) {
       LCD_enabled=!!cc;
-console.log('lcd ->',LCD_enabled)
       if (!LCD_enabled){ // Disabling the display sets it to mode 1
+        // this should also probably set all pixels to white
         LCD_scan=0;
         MEM[0xFF41] = (MEM[0xFF41] & 0x3) +1;
 
@@ -1435,54 +1435,7 @@ var bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0
 
 
 
-function plotTileData(){
 
-  var i = 0x8010;
-
-  var bgpalette = [
-    (MEM[0xFF47])&3,
-    (MEM[0xFF47]>>2)&3,
-    (MEM[0xFF47]>>4)&3,
-    (MEM[0xFF47]>>6)&3
-  ]
-  
-
-  for (var j=0;j<8;j++){
-    var row1 = MEM[i], row2 = MEM[i+1];
-    var pix = [
-      ((row1&128)+ 2*(row2&128)) >>7,
-      ((row1&64) + 2*(row2&64)) >>6,
-      ((row1&32) + 2*(row2&32)) >>5,
-      ((row1&16) + 2*(row2&16)) >>4,
-      ((row1&8)  + 2*(row2&8)) >>3,
-      ((row1&4)  + 2*(row2&4)) >>2,
-      ((row1&2)  + 2*(row2&2)) >>1,
-      ((row1&1)  + 2*(row2&1))
-
-    ]
-    for (var k=0;k<8;k++)
-      dpixels[k+ 160*j] = bgpalette[pix[k]] 
-    i+=2;
-  }
-
-  //look up palette
-  
-  renderDisplayCanvas();
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-var usedTiles = {}
 
 
 
@@ -1627,10 +1580,16 @@ function cpu(){
         // tile column = pixel column >> 3
         
           var y = (MEM[0xFF44] + MEM[0xFF42] );
-
           var x = MEM[0xFF43]
-          var tileNum = MEM[ bgTileMapAddr + (~~(y/8))*32 + ~~(x/8) ] 
-          usedTiles[tileNum] = (usedTiles[tileNum] || 0) + 1;
+
+          var tileNum = MEM[ bgTileMapAddr + ~~(x/8) ] 
+          
+          var yoff = y%8;
+          var xoff = x%8;
+
+          // Y doesn't change throughout a scanline
+          bgTileMapAddr += (~~(y/8))*32; 
+          tileOffset+=yoff*2;
 
           if (!tileSigned){
             var tileptr = tileOffset+tileNum*16;
@@ -1638,10 +1597,9 @@ function cpu(){
             var tileptr = tileOffset+signedOffset(tileNum)*16;
           }
 
-        var yoff = y%8;
-        var xoff = x%8;
+
         function grabTile(){
-          var d1 = MEM[tileptr + yoff*2], d2 = MEM[tileptr + yoff*2 +1]
+          var d1 = MEM[tileptr ], d2 = MEM[tileptr +1]
           return pixelDecoder[d1][d2]
         }
         var pix = grabTile();
@@ -1653,8 +1611,8 @@ function cpu(){
 
           if (xoff==8) {
             x+=8;
-            tileNum = MEM[ bgTileMapAddr + (~~(y/8))*32 + ~~(x/8) ] 
-            usedTiles[tileNum] = (usedTiles[tileNum] || 0) + 1;
+            tileNum = MEM[ bgTileMapAddr  + ~~(x/8) ] 
+            
             if (!tileSigned){
               var tileptr = tileOffset+tileNum*16;
             }else{
