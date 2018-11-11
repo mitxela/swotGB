@@ -131,6 +131,8 @@ var MBCRamMode=0; //for MBC1
 var divPrescaler=0, timerPrescaler=0, timerSpeed=1, timerEnable=false;
 var LCD_enabled = false, LCD_lastmode=1, LCD_scan=0;
 var tileData =new Uint8Array((0x9800 - 0x8000)/16);
+var joypad_dpad = 0xf, joypad_buttons=0xf; // 0=pressed
+
 
 function readMem(addr){
   if (addr <= 0x3fff) return ROM[ addr ];
@@ -138,6 +140,15 @@ function readMem(addr){
 
   // Cartridge RAM
   if (addr >= 0xA000 && addr <=0xBFFF) return cartRAM[ addr + RAMbankoffset ];
+
+  // Joypad
+  if (addr==0xFF00) {
+    if (MEM[0xFF00]&0x10) {
+      return joypad_dpad
+    } else if (MEM[0xFF00]&0x20) {
+      return joypad_buttons
+    } else return 0;
+  }
 
   return MEM[addr];
 }
@@ -169,12 +180,14 @@ function writeMem(addr, data){
   }*/
 
 
-
+//if (addr==0xff80) console.log('w ff80',data,f(PC,4))
 
   if (addr >= 0xA000 && addr <=0xBFFF && RAMenabled){
     cartRAM[ addr + RAMbankoffset ] = data;
     return
   }
+
+
 
   //DIV register: reset
   if (addr==0xFF04) {MEM[0xFF04]=0;return;}
