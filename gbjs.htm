@@ -25,6 +25,9 @@ canvas{
 
 
 <script>
+var instr_count = 0;
+var instr_log=false;
+
 var dpixels = new Uint8Array(160*144);
 
 var display = document.getElementById('display'), dctx = display.getContext('2d');
@@ -330,14 +333,14 @@ function ld(a,b){
 }
 function ld_from_mem(a, b, c){
   if (b==Immediate) return function(){
-    REG[a] = readMem( readMem( PC+1 ) + (readMem( PC+2 ) <<8) )
-    PC+=3
+    REG[a] = readMem( readMem( PC+1 ) + (readMem( PC+2 ) <<8) );
+    PC+=3;
     return 12;
   }
 
   return function(){
     REG[a] = readMem( (REG[b]<<8)+REG[c] );
-    PC++
+    PC++;
     return 8;
   }
 }
@@ -526,7 +529,7 @@ function ALU_process_8bit(op, b){
       result -= b;
       FLAGS.N = true;
       FLAGS.H = !!(((REG[A]&0x0F) - (b&0x0F)) & 0x10)
-      FLAGS.Z = (result == 0)
+      FLAGS.Z = ((result & 0xff) == 0)
       FLAGS.C = result > 255 || result < 0;
     return REG[A];
 
@@ -577,7 +580,7 @@ function incdec_process_8bit(a,offset) {
     var result = a+offset;
     FLAGS.H = (a &(1<<4)) != (result &(1<<4));
     FLAGS.N = offset==-1;
-    FLAGS.Z = (result == 0)
+    FLAGS.Z = ((result & 0xff) == 0)
     return result;
 }
 
@@ -634,6 +637,7 @@ function jrZ(){
 function jrC(){
   if (!FLAGS.C) {PC+=2; return 8}
   PC += 2+signedOffset(readMem(PC+1))
+	return 12
 }
 
 function jr(){ //unconditional relative
@@ -691,10 +695,10 @@ function pop(a,b) {
   if (a==A) return function(){
     var s = readMem16(SP);
     REG[A] = s[0]
-    FLAGS.Z = s[1] & (1<<7) == 1
-    FLAGS.N = s[1] & (1<<6) == 1
-    FLAGS.H = s[1] & (1<<5) == 1
-    FLAGS.C = s[1] & (1<<4) == 1
+	  FLAGS.Z = (s[1] & (1<<7)) > 0
+	  FLAGS.N = (s[1] & (1<<6)) > 0
+	  FLAGS.H = (s[1] & (1<<5)) > 0
+	  FLAGS.C = (s[1] & (1<<4)) > 0
     SP+=2
     PC++
     return 12
@@ -1484,7 +1488,7 @@ function cpu(){
 
       var tmp = readMem(PC);
       var cycles = opcodes[tmp]();
-      if (typeof cycles ==="undefined") throw Error('cycles!')
+	if (typeof cycles ==="undefined") throw Error(`cycles! ${f(tmp,4)} @ ${f(PC,4)}`)
   
   // DIV  = 0xFF04 //Divider Register (R/W)
   // TIMA = 0xFF05 //Timer counter (R/W)
@@ -1728,6 +1732,9 @@ function cpu(){
   }
 
 
+	if( PC==0x100){ instr_log=true; }
+	//if(instr_log) { console.log(f(PC,4)) }
+  instr_count += cycles;
   return cycles
 }
 
@@ -1882,6 +1889,7 @@ function ascii(c){
   debug+="\nHL: "+ f(REG[H])+ f(REG[L])+"        C: "+FLAGS.C
   debug+="\nSP: "+ f(SP,4)
   debug+="\nPC: "+ f(PC,4)
+  debug+="\ncount: "+ instr_count
 
   out.innerHTML=debug;
 
