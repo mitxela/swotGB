@@ -82,11 +82,12 @@ var SoundEnabled = false;
 var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 //FFT stuff
-reverseTable = new Uint32Array(32);
+const FFTsize = 512
+reverseTable = new Uint32Array(FFTsize);
 (function(){
-  var limit = 1,  bit = 32 >> 1;
+  var limit = 1,  bit = FFTsize >> 1;
   
-  while ( limit < 32 ) {
+  while ( limit < FFTsize ) {
     for ( i = 0; i < limit; i++ ) {
       reverseTable[i + limit] = reverseTable[i] + bit;
     }
@@ -94,11 +95,50 @@ reverseTable = new Uint32Array(32);
     bit = bit >> 1;
   }
 })();
-function setSound3Waveform(samples) {
-  var i, real = new Float32Array(32), imag = new Float32Array(32);
+function setSound3Waveform() {
+  var i, real = new Float32Array(FFTsize), imag = new Float32Array(FFTsize), samples=new Float32Array(FFTsize);
+
+  // sufficiently square edges!
+  for ( i = 0; i < 16; i++ ) {
+     samples[32*i+0] = 
+     samples[32*i+1] = 
+     samples[32*i+2] = 
+     samples[32*i+3] = 
+     samples[32*i+4] = 
+     samples[32*i+5] = 
+     samples[32*i+6] = 
+     samples[32*i+7] = 
+     samples[32*i+8] = 
+     samples[32*i+9] = 
+     samples[32*i+10] = 
+     samples[32*i+11] = 
+     samples[32*i+12] = 
+     samples[32*i+13] = 
+     samples[32*i+14] = 
+     samples[32*i+15] = 
+      MEM[0xFF30 + i]>>4;
+     samples[32*i+16] = 
+     samples[32*i+17] = 
+     samples[32*i+18] = 
+     samples[32*i+19] = 
+     samples[32*i+20] = 
+     samples[32*i+21] = 
+     samples[32*i+22] = 
+     samples[32*i+23] = 
+     samples[32*i+24] = 
+     samples[32*i+25] = 
+     samples[32*i+26] = 
+     samples[32*i+27] = 
+     samples[32*i+28] = 
+     samples[32*i+29] = 
+     samples[32*i+30] = 
+     samples[32*i+31] = 
+      MEM[0xFF30 + i]&0x0F;
+  }
+
   
-  for ( i = 0; i < 32; i++ ) {
-    real[i] = samples[reverseTable[i]]*0.5;
+  for ( i = 0; i < FFTsize; i++ ) {
+    real[i] = samples[reverseTable[i]]/1024;
     imag[i] = 0;
   }
   
@@ -112,7 +152,7 @@ function setSound3Waveform(samples) {
     ti,
     tmpReal;
 
-  while ( halfSize < 32 ) {
+  while ( halfSize < FFTsize ) {
     phaseShiftStepReal = Math.cos(-3.141592653589793/halfSize);
     phaseShiftStepImag = Math.sin(-3.141592653589793/halfSize);
     currentPhaseShiftReal = 1.0;
@@ -121,7 +161,7 @@ function setSound3Waveform(samples) {
     for ( var fftStep = 0; fftStep < halfSize; fftStep++ ) {
       i = fftStep;
 
-      while ( i < 32 ) {
+      while ( i < FFTsize ) {
         off = i + halfSize;
         tr = (currentPhaseShiftReal * real[off]) - (currentPhaseShiftImag * imag[off]);
         ti = (currentPhaseShiftReal * imag[off]) + (currentPhaseShiftImag * real[off]);
@@ -141,7 +181,7 @@ function setSound3Waveform(samples) {
     halfSize = halfSize << 1;
   }
   sound[3].oscillator.setPeriodicWave(
-    audioCtx.createPeriodicWave(real.slice(0,16),imag.slice(0,16), {disableNormalization:true})
+    audioCtx.createPeriodicWave(real.slice(0,FFTsize/2),imag.slice(0,FFTsize/2), {disableNormalization:true})
   );
 };
 
@@ -165,8 +205,7 @@ const sound = {
     oscillator: audioCtx.createOscillator(),
     gainNode:audioCtx.createGain(),
     amp:  function(a) { sound[3].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
-    freq: function(f) { sound[3].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
-    waveform: setSound3Waveform
+    freq: function(f) { sound[3].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) }
   },
   4:{ //Noise
     oscillator: audioCtx.createScriptProcessor(4096, 1, 1),
@@ -463,6 +502,10 @@ function writeMem(addr, data){
     if (addr==0xFF1A) {
       if (data&(1<<7)) {
         sound[3].initialized=true;
+
+        // is this the right (only?) place to load the waveform?
+        setSound3Waveform()
+
       } else {
         sound[3].initialized=false;
         sound[3].amp(0)
@@ -476,11 +519,11 @@ function writeMem(addr, data){
     // FF1C - NR32 - Channel 3 Select output level (R/W)
     if (addr==0xFF1C) {
       // Really we ought to bit-crush it, but whatever
-      if (sound[3].initialized) sound[3].amp( ((data>>5)&0x3)/16 )
+      if (sound[3].initialized) sound[3].amp( [ 0,0.125,0.25,0.5 ][((MEM[0xFF1C]>>5)&0x3)] )
+      console.log(((data>>5)&0x3)/16)
       MEM[addr] = data
       return;
     }
-
 
     // FF1D - NR33 - Channel 3 Frequency's lower data (W)
     if (addr == 0xFF1D) {
@@ -493,9 +536,9 @@ function writeMem(addr, data){
       if (data&(1<<7)) {
 
         sound[3].initialized = true
-        sound[3].freq(  131072/(2048-  (((data&0x7)<<8)+ MEM[0xFF1D])  )  )
+        sound[3].freq(   65536/(2048-  (((data&0x7)<<8)+ MEM[0xFF1D])  )  )
 
-        sound[3].amp( ((MEM[0xFF1C]>>5)&0x3)/16 )
+        sound[3].amp( [ 0,0.125,0.25,0.5 ][((MEM[0xFF1C]>>5)&0x3)] )
 
         sound[3].lengthEnabled = (data&(1<<6)) !=0;
         sound[3].length = MEM[0xFF1B];
