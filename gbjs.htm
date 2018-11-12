@@ -87,14 +87,14 @@ const sound = {
     gainNode:audioCtx.createGain(),
     amp:  function(a) { sound[1].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
     freq: function(f) { sound[1].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
-    duty: function(d) { sound[1].oscillator.setPeriodicWave( generatePulseWave(d) ) }
+    duty: function(d) { sound[1].oscillator.setPeriodicWave( sound.pulses[d] ) }
   },
   2:{ // Square / Pulse with envelope
     oscillator:audioCtx.createOscillator(),
     gainNode:audioCtx.createGain(),
     amp:  function(a) { sound[2].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
     freq: function(f) { sound[2].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
-    duty: function(d) { sound[2].oscillator.setPeriodicWave( generatePulseWave(d) ) }
+    duty: function(d) { sound[2].oscillator.setPeriodicWave( sound.pulses[d] ) }
   },
   3:{ // Wave playback
     oscillator: audioCtx.createScriptProcessor(4096, 1, 1),
@@ -109,14 +109,23 @@ const sound = {
 }
 
 function generatePulseWave(duty){
-  var real = new Float32Array(512);
-  var imag = new Float32Array(512);
+  var res = 256; // up to 8192 according to spec
+  var real = new Float32Array(res);
+  var imag = new Float32Array(res);
 
-  for (var n = 0; n<512; n++) {
-    real[n] = Math.sin( 3.141592653589793*n*duty )/(1.570796326794896*n)
+  real[0] = 0.1*duty;
+  for (var n = 1; n<res; n++) {
+    real[n] = 0.1*Math.sin( 3.141592653589793*n*duty )/(1.570796326794896*n)
   }
-  return audioCtx.createPeriodicWave(real,imag);
+  return audioCtx.createPeriodicWave(real,imag, {disableNormalization:true});
 }
+
+sound.pulses = [
+  generatePulseWave(0.125),
+  generatePulseWave(0.25),
+  generatePulseWave(0.5),
+  generatePulseWave(0.75)
+]
 
 var seed = 123456;
 sound[4].oscillator.onaudioprocess = function(e){
@@ -126,16 +135,21 @@ sound[4].oscillator.onaudioprocess = function(e){
   }
 }
 
+sound.final = audioCtx.createGain();
+sound.volume = function(v){ sound.final.gain.setValueAtTime(v, audioCtx.currentTime) }
+
 for (var i=1;i<=4;i++){
   sound[i].amp(0)
   sound[i].oscillator.connect(sound[i].gainNode)
-  sound[i].gainNode.connect(audioCtx.destination)
+  sound[i].gainNode.connect(sound.final)
 }
 
 sound[1].oscillator.start()
 sound[2].oscillator.start()
 
-audioCtx.suspend();
+sound.final.connect(audioCtx.destination)
+
+audioCtx.suspend()
 
 
 /*
@@ -276,15 +290,89 @@ function writeMem(addr, data){
   }
   if (addr>=0xFF10 && addr <=0xFF25) {
     if (!SoundEnabled) return;
+    // FF10 - NR10 - Channel 1 Sweep register (R/W)
+    // FF11 - NR11 - Channel 1 Sound length/Wave pattern duty (R/W)
+    if (addr == 0xFF11) {
+      MEM[addr] = data&0xC0;
+      sound[1].duty(data>>6)
+      return;
+    }
+    // FF12 - NR12 - Channel 1 Volume Envelope (R/W)
+    if (addr == 0xFF12) {
+      MEM[addr] = data
+      return;
+    }
+    // FF13 - NR13 - Channel 1 Frequency lo (Write Only)
+    if (addr == 0xFF13) {
+      MEM[addr] = data
+      return;
+    }
+    // FF14 - NR14 - Channel 1 Frequency hi (R/W)
+    if (addr == 0xFF14) {
+      //bit 7 is initialize
+      if (data&(1<<7)) {
+        sound[1].freq(  131072/(2048-  (((data&0x7)<<8)+ MEM[0xFF13])  )  )
+        
+        sound[1].amp( MEM[0xFF12]>>4 )
+      }
+      MEM[addr] = data
+      return;
+    }
 
 
 
+    // FF16 - NR21 - Channel 2 Sound Length/Wave Pattern Duty (R/W)
+        // Bit 7-6 - Wave Pattern Duty (Read/Write)
+        // Bit 5-0 - Sound length data (Write Only) (t1: 0-63)
+    if (addr == 0xFF16) {
+      MEM[addr] = data&0xC0;
+      sound[2].duty(data>>6)
+      return;
+    }
 
+    // FF17 - NR22 - Channel 2 Volume Envelope (R/W)
+    if (addr == 0xFF17) {
+      MEM[addr] = data
+      return;
+    }
+    // FF18 - NR23 - Channel 2 Frequency lo data (W)
+    if (addr == 0xFF18) {
+      MEM[addr] = data
+      return;
+    }
+    // FF19 - NR24 - Channel 2 Frequency hi data (R/W)
+    if (addr == 0xFF19) {
+      //bit 7 is initialize
+      if (data&(1<<7)) {
+        sound[2].freq(  131072/(2048-  (((data&0x7)<<8)+ MEM[0xFF18])  )  )
+        
+        sound[2].amp( MEM[0xFF17]>>4 )
+      }
+      MEM[addr] = data
+      return;
+    }
+
+
+    // FF24 - NR50 - Channel control / ON-OFF / Volume (R/W)
+    if (addr == 0xFF24) {
+       //  Bit 7   - Output Vin to SO2 terminal (1=Enable)
+       //  Bit 6-4 - SO2 output level (volume)  (0-7)
+       //  Bit 3   - Output Vin to SO1 terminal (1=Enable)
+       //  Bit 2-0 - SO1 output level (volume)  (0-7)
+       // cheating here - ignore Vin, average left and right volume levels
+      sound.volume(( (data&0x7) + ((data>>4)&0x7) )/14)
+      MEM[addr] = data; 
+      return
+    }
 
     // FF25 - NR51 - Selection of Sound output terminal (R/W)
-    if (addr == 0xff25) {} // Worry later, leave it mono for now
+    if (addr == 0xff25) {
+      // Worry later, leave it mono for now
+      MEM[addr] = data; 
+      return
+    } 
 
-    MEM[addr] = data;
+    
     return;
   }
 
@@ -2016,6 +2104,7 @@ var openFile = function(event) {
 <button onclick="cpu(); debugData(); return false">CPU</button>
 <button onclick="runto();return false">Run To...</button>
 <button onclick="requestStop=true; return false">Stop</button>
+<button onclick="debugData=function(){}; return false">Kill debug</button>
 <input type='file' id=fileinput onchange='openFile(event)'>
 
 <script>
