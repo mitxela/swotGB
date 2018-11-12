@@ -81,6 +81,71 @@ for (var d1 = 0; d1<256; d1++) {
 var SoundEnabled = false;
 var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+//FFT stuff
+reverseTable = new Uint32Array(32);
+(function(){
+  var limit = 1,  bit = 32 >> 1;
+  
+  while ( limit < 32 ) {
+    for ( i = 0; i < limit; i++ ) {
+      reverseTable[i + limit] = reverseTable[i] + bit;
+    }
+    limit = limit << 1;
+    bit = bit >> 1;
+  }
+})();
+function setSound3Waveform(samples) {
+  var i, real = new Float32Array(32), imag = new Float32Array(32);
+  
+  for ( i = 0; i < 32; i++ ) {
+    real[i] = samples[reverseTable[i]]*0.5;
+    imag[i] = 0;
+  }
+  
+  var halfSize = 1,
+    phaseShiftStepReal,
+    phaseShiftStepImag,
+    currentPhaseShiftReal,
+    currentPhaseShiftImag,
+    off,
+    tr,
+    ti,
+    tmpReal;
+
+  while ( halfSize < 32 ) {
+    phaseShiftStepReal = Math.cos(-3.141592653589793/halfSize);
+    phaseShiftStepImag = Math.sin(-3.141592653589793/halfSize);
+    currentPhaseShiftReal = 1.0;
+    currentPhaseShiftImag = 0.0;
+
+    for ( var fftStep = 0; fftStep < halfSize; fftStep++ ) {
+      i = fftStep;
+
+      while ( i < 32 ) {
+        off = i + halfSize;
+        tr = (currentPhaseShiftReal * real[off]) - (currentPhaseShiftImag * imag[off]);
+        ti = (currentPhaseShiftReal * imag[off]) + (currentPhaseShiftImag * real[off]);
+
+        real[off] = real[i] - tr;
+        imag[off] = imag[i] - ti;
+        real[i] += tr;
+        imag[i] += ti;
+
+        i += halfSize << 1;
+      }
+
+      tmpReal = currentPhaseShiftReal;
+      currentPhaseShiftReal = (tmpReal * phaseShiftStepReal) - (currentPhaseShiftImag * phaseShiftStepImag);
+      currentPhaseShiftImag = (tmpReal * phaseShiftStepImag) + (currentPhaseShiftImag * phaseShiftStepReal);
+    }
+    halfSize = halfSize << 1;
+  }
+  sound[3].oscillator.setPeriodicWave(
+    audioCtx.createPeriodicWave(real.slice(0,16),imag.slice(0,16), {disableNormalization:true})
+  );
+};
+
+
 const sound = {
   1:{ // Square / Pulse with sweep and envelope
     oscillator:audioCtx.createOscillator(),
@@ -97,9 +162,11 @@ const sound = {
     duty: function(d) { sound[2].oscillator.setPeriodicWave( sound.pulses[d] ) }
   },
   3:{ // Wave playback
-    oscillator: audioCtx.createScriptProcessor(4096, 1, 1),
+    oscillator: audioCtx.createOscillator(),
     gainNode:audioCtx.createGain(),
-    amp:  function(a) { sound[3].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) }
+    amp:  function(a) { sound[3].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
+    freq: function(f) { sound[3].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
+    waveform: setSound3Waveform
   },
   4:{ //Noise
     oscillator: audioCtx.createScriptProcessor(4096, 1, 1),
@@ -154,6 +221,8 @@ for (var i=1;i<=4;i++){
 
 sound[1].oscillator.start()
 sound[2].oscillator.start()
+sound[3].oscillator.start()
+
 
 sound.final.connect(audioCtx.destination)
 
@@ -385,6 +454,61 @@ function writeMem(addr, data){
       MEM[addr] = data
       return;
     }
+
+    // Sound 3 - user-defined waveform
+    // "it can output a sound while changing its length, frequency, and level"
+    // not sure what changing its length means, and changing its frequency means re-initializing
+
+    // FF1A - NR30 - Channel 3 Sound on/off (R/W)
+    if (addr==0xFF1A) {
+      if (data&(1<<7)) {
+        sound[3].initialized=true;
+      } else {
+        sound[3].initialized=false;
+        sound[3].amp(0)
+      }
+    }
+    // FF1B - NR31 - Channel 3 Sound Length
+    if (addr==0xFF1B) {
+      MEM[addr] = data
+      return;
+    }
+    // FF1C - NR32 - Channel 3 Select output level (R/W)
+    if (addr==0xFF1C) {
+      // Really we ought to bit-crush it, but whatever
+      if (sound[3].initialized) sound[3].amp( ((data>>5)&0x3)/16 )
+      MEM[addr] = data
+      return;
+    }
+
+
+    // FF1D - NR33 - Channel 3 Frequency's lower data (W)
+    if (addr == 0xFF1D) {
+      MEM[addr] = data
+      return;
+    }
+    // FF1E - NR34 - Channel 3 Frequency's higher data (R/W)
+    if (addr == 0xFF1E) {
+      //bit 7 is initialize
+      if (data&(1<<7)) {
+
+        sound[3].initialized = true
+        sound[3].freq(  131072/(2048-  (((data&0x7)<<8)+ MEM[0xFF1D])  )  )
+
+        sound[3].amp( ((MEM[0xFF1C]>>5)&0x3)/16 )
+
+        sound[3].lengthEnabled = (data&(1<<6)) !=0;
+        sound[3].length = MEM[0xFF1B];
+
+        MEM[0xFF26] |= (1<<2) // flag sound 3 as on
+      }
+      MEM[addr] = data
+      return;
+    }
+
+
+
+
 
 
     // FF24 - NR50 - Channel control / ON-OFF / Volume (R/W)
@@ -1661,25 +1785,29 @@ function soundStep(){ //256 times per second
 
   // length resolution 1/256 second
 
-  // if counter/consec
-    // decrement length
-      // if zero stop sound
+  // Sound length = (64 - t1) x (1/256) sec
 
   if (sound[1].lengthEnabled) {
-    if (--sound[1].length ==0) {
+    if (++sound[1].length >=64) {
       sound[1].lengthEnabled=false;
       sound[1].amp(0)
       MEM[0xFF26] &= ~(1<<0) // flag sound 1 as off
     }
   }
   if (sound[2].lengthEnabled) {
-    if (--sound[2].length ==0) {
+    if (++sound[2].length >=64) {
       sound[2].lengthEnabled=false;
       sound[2].amp(0)
       MEM[0xFF26] &= ~(1<<1) // flag sound 2 as off
     }
   }
-
+  if (sound[3].lengthEnabled) {
+    if (++sound[3].length >=256) {
+      sound[3].lengthEnabled=false;
+      sound[3].amp(0)
+      MEM[0xFF26] &= ~(1<<2) // flag sound 3 as off
+    }
+  }
 
 
   if (soundPrescaler1++) {
