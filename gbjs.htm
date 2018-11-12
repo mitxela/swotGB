@@ -78,6 +78,65 @@ for (var d1 = 0; d1<256; d1++) {
 
 
 
+var SoundEnabled = false;
+var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+const sound = {
+  1:{ // Square / Pulse with sweep and envelope
+    oscillator:audioCtx.createOscillator(),
+    gainNode:audioCtx.createGain(),
+    amp:  function(a) { sound[1].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
+    freq: function(f) { sound[1].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
+    duty: function(d) { sound[1].oscillator.setPeriodicWave( generatePulseWave(d) ) }
+  },
+  2:{ // Square / Pulse with envelope
+    oscillator:audioCtx.createOscillator(),
+    gainNode:audioCtx.createGain(),
+    amp:  function(a) { sound[2].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
+    freq: function(f) { sound[2].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
+    duty: function(d) { sound[2].oscillator.setPeriodicWave( generatePulseWave(d) ) }
+  },
+  3:{ // Wave playback
+    oscillator: audioCtx.createScriptProcessor(4096, 1, 1),
+    gainNode:audioCtx.createGain(),
+    amp:  function(a) { sound[3].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) }
+  },
+  4:{ //Noise
+    oscillator: audioCtx.createScriptProcessor(4096, 1, 1),
+    gainNode:audioCtx.createGain(),
+    amp:  function(a) { sound[4].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) }
+  }
+}
+
+function generatePulseWave(duty){
+  var real = new Float32Array(512);
+  var imag = new Float32Array(512);
+
+  for (var n = 0; n<512; n++) {
+    real[n] = Math.sin( 3.141592653589793*n*duty )/(1.570796326794896*n)
+  }
+  return audioCtx.createPeriodicWave(real,imag);
+}
+
+var seed = 123456;
+sound[4].oscillator.onaudioprocess = function(e){
+  var output = e.outputBuffer.getChannelData(0);
+  for (var i = 0; i < 4096; i++) {
+    output[i] = (seed = seed * 16807 % 0x7FFFFFFF)/0x3FFFFFFF  - 1;
+  }
+}
+
+for (var i=1;i<=4;i++){
+  sound[i].amp(0)
+  sound[i].oscillator.connect(sound[i].gainNode)
+  sound[i].gainNode.connect(audioCtx.destination)
+}
+
+sound[1].oscillator.start()
+sound[2].oscillator.start()
+
+audioCtx.suspend();
+
 
 /*
 Memory map
@@ -202,9 +261,32 @@ function writeMem(addr, data){
     return;
   }
 
-  //debug
-  //if ((addr>>8) == 0xFF) console.log("IO write: $"+f(addr,4)+" - "+f(data))
+  // Sound Control
+  if (addr==0xFF26) {
+    if (data&(1<<7)) {
+      SoundEnabled = true;
+      audioCtx.resume()
+    } else {
+      SoundEnabled = false;
+      audioCtx.suspend()
+      // Zero all sound registers
+      for (var i=0xFF10;i<=0xFF25;i++) MEM[i]=0;
+    }
+    return;
+  }
+  if (addr>=0xFF10 && addr <=0xFF25) {
+    if (!SoundEnabled) return;
 
+
+
+
+
+    // FF25 - NR51 - Selection of Sound output terminal (R/W)
+    if (addr == 0xff25) {} // Worry later, leave it mono for now
+
+    MEM[addr] = data;
+    return;
+  }
 
   //LCD control
   if (addr==0xFF40) {
