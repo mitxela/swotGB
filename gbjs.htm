@@ -962,15 +962,12 @@ const AND = 5
 const OR  = 6
 const XOR = 7
 const CP  = 8
-//const INC = 9
-//const DEC = 10
-// daa
-// cpl
+
 
 function ALU_process_8bit(op, b){
 
   var result = REG[A];
-  FLAGS.N = false; // does any ALU operation leave this unchanged? daa
+  FLAGS.N = false;
 
   switch (op){
     case ADD: 
@@ -1365,17 +1362,17 @@ function daa(){
 //http://gbdev.gg8.se/wiki/articles/DAA
 //https://github.com/mamedev/mame/blob/master/src/devices/cpu/z80/z80.cpp#L847
 
-  var a = REG[A], c=false;
+  var a = REG[A];
   if (FLAGS.N) {
-    if (FLAGS.H) a-=0x06;
+    if (FLAGS.H) {a-=0x06; if(!FLAGS.C) a&=0xFF;}
     if (FLAGS.C) a-=0x60;
   } else {
-    if ((a&0x0f)>0x09 || FLAGS.H)  a+=0x06;
-    if (       a>0x99 || FLAGS.C) {a+=0x60; c=true}
+    if ((a&0x0f)>0x09 || FLAGS.H) a+=0x06;
+    if (       a>0x99 || FLAGS.C) a+=0x60; 
   }
 
-  FLAGS.Z = (a == 0)
-  FLAGS.C = c
+  FLAGS.Z = ((a&0xFF) == 0)
+  FLAGS.C = (a&0x100)!=0
   FLAGS.H = 0
 
   REG[A]=a;
