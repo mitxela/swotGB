@@ -20,7 +20,7 @@ canvas{
 <pre id=stack></pre>
 
 
-<canvas id=display width=160 height=144></canvas>
+<canvas id=display width=160 height=144 onclick='runto(1);'></canvas>
 
 <!--offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>-->
 <pre id=out></pre>
@@ -634,15 +634,23 @@ function writeMem(addr, data){
     }
   }
   if (addr==0xFF41) {
-    //don't overwrite the last two bits (mode)
+    //don't overwrite the lowest two bits (mode)
     MEM[0xFF41] &= 0x3
     data &= 0xFC
-    MEM[0xFF41] |= data;
+    MEM[0xFF41] |= 0x80|data; // BGB has highest bit always set
     return;
   }
 
   // LY - write causes reset
   if (addr==0xFF44) { MEM[0xFF44] = 0; return }
+
+  // FF46 - DMA - DMA Transfer and Start Address (W)
+  if (addr==0xFF46) {
+    var st=data<<8;
+    for (var i=0;i<=0x9F;i++) 
+      MEM[0xFE00 +i] = readMem(st + i);
+    return
+  }
 
   // disable bootrom
   if (addr==0xFF50) { for (var i=0;i<256;i++) ROM[i]=FirstROMPage[i]; return}
@@ -672,10 +680,9 @@ function doMBC(addr, data){
   // 02h  MBC1+RAM
   // 03h  MBC1+RAM+BATTERY
   case 1: case 2: case 3:
-
-    if (addr <= 0x1FFF)
+    if (addr <= 0x1FFF) {
       RAMenabled = (data & 0x0F == 0xA) 
-    else if (addr <= 0x3FFF){
+    } else if (addr <= 0x3FFF){
       data &= 0x1F;
       if (data==0) data=1 // MBC1 translates bank 0 to bank 1 (apparently regardless of upper bits)
       // set lowest 5 bits of bank number
@@ -1223,7 +1230,7 @@ function reti(){
 }
 
 function ei(){
-  // This needs wait until the end of the next instruction
+  // This needs to wait until the end of the next instruction
   IME = true
   PC++
   return 4
@@ -2035,13 +2042,14 @@ function cpu(){
       LCD_scan -= 456;
       MEM[0xFF44] ++;
       draw=true;
-      coincidence = (MEM[0xFF44] == MEM[0xFF45]);
       if (MEM[0xFF44] > 153) MEM[0xFF44] =0;
+      coincidence = (MEM[0xFF44] == MEM[0xFF45]);
     }
 
     if (MEM[0xFF44] >= 144) mode = 1; //vblank
     else if (draw){
       //Draw scanline
+      var LY = MEM[0xFF44];
 
       //  FF40 - LCDC - LCD Control (R/W)
       //
@@ -2089,7 +2097,7 @@ function cpu(){
         // pixel column = FF43
         // tile column = pixel column >> 3
         
-        var y = (MEM[0xFF44] + MEM[0xFF42]) &0xFF;
+        var y = (LY + MEM[0xFF42]) &0xFF;
 
         var x    = MEM[0xFF43] >>3;
         var xoff = MEM[0xFF43] & 7;
@@ -2112,7 +2120,7 @@ function cpu(){
 
         var pix = grabTile();
 
-        var dpy = MEM[0xFF44]*160;
+        var dpy = LY*160;
         
         for (var i=0;i<160;i++) {
           dpixels[dpy + i] = bgpalette[pix[ xoff++ ]]
@@ -2127,13 +2135,62 @@ function cpu(){
         }
 
         
+        // Render sprites
+        var height = MEM[0xFF40]&(1<<2) ? 16:8;
 
+        var OBP0 = [
+          0,
+          (MEM[0xFF48]>>2)&3,
+          (MEM[0xFF48]>>4)&3,
+          (MEM[0xFF48]>>6)&3
+        ],
+        OBP1 = [
+          0,
+          (MEM[0xFF49]>>2)&3,
+          (MEM[0xFF49]>>4)&3,
+          (MEM[0xFF49]>>6)&3
+        ];
 
+        // OAM 4 bytes per sprite, 40 sprites
+        for (var i=0xFE00;i<0xFEA0;i+=4) {
+          var ypos = MEM[i]-16+height;
+          if ( LY >= ypos-height && LY < ypos) {
 
+            var xpos = MEM[i+1],
+                tileNum = 0x8000 + MEM[i+2]*16,
+                att = MEM[i+3];
+            
+                // Bit7   OBJ-to-BG Priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
+                //        (Used for both BG and Window. BG color 0 is always behind OBJ)
+                // Bit6   Y flip          (0=Normal, 1=Vertically mirrored)
+                // Bit5   X flip          (0=Normal, 1=Horizontally mirrored)
+                // Bit4   Palette number  **Non CGB Mode Only** (0=OBP0, 1=OBP1)
 
+                var palette = att&(1<<4) ? OBP1 : OBP0 ;
+
+                if (att&(1<<6)) {//Y flip
+
+                }else{
+                  tileNum += (LY-ypos+height)*2 
+                  var d1= MEM[tileNum], d2= MEM[tileNum+1],
+                      row = pixelDecoder[d1][d2];
+                  if (att&(1<<5)) { // x flip
+                    for (var j = 0; j<8; j++) {
+                      if (row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
+                    }
+                  } else {
+                    for (var j = 0; j<8; j++) {
+                      if (row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                    }
+                  }
+                }
+
+                
+
+          }
+        }
 
       }
-
 
     }
 
@@ -2167,7 +2224,7 @@ function cpu(){
         if (MEM[0xFF41] & (1<<5)) MEM[0xFF0F] |= 1<<1;
       }
 
-      MEM[0xFF41]&=0xF8;
+      MEM[0xFF41] &= 0xF8;
       MEM[0xFF41] += mode;
       LCD_lastmode=mode;
     }
@@ -2215,11 +2272,11 @@ function cpu(){
 
 var requestStop =false;
 var targ=0x8e
-function runto(){
+function runto(end){
   requestStop =false;
 
   var tcount=0;
-  targ=parseInt(prompt('Address', f(targ,4)),16); 
+  targ=end?0x10000:parseInt(prompt('Address', f(targ,4)),16); 
 
   run()
 }
@@ -2437,7 +2494,7 @@ asdf=function(){}
 </script>
 <button onclick="cpu(); debugData(); return false">CPU</button>
 <button onclick="runto();return false">Run To...</button>
-<button onclick="requestStop=true; return false">Stop</button>
+<button onclick="requestStop=true; sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0); return false">Stop</button>
 <button onclick="qwert=debugData; debugData=asdf; asdf=qwert; return false">Debug</button>
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
 
