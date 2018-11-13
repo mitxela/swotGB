@@ -2178,19 +2178,19 @@ function cpu(){
                   row = pixelDecoder[d1][d2];
 
                 if (att&(1<<5)) { // x flip
-                  for (var j = 0; j<8; j++) {
+                  for (var j = Math.max(1-xpos,0); j<8; j++) {
                     if (behind) {
-                      if (xpos-1-j>=0 && dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
+                      if (dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                     }else{
-                      if (xpos-1-j>=0 && row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
+                      if (row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                     }
                   }
                 } else {
-                  for (var j = 0; j<8; j++) {
+                  for (var j = Math.max(8-xpos,0); j<8; j++) {
                     if (behind) { 
-                      if (xpos-8+j>=0 && dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                      if (dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
                     } else {
-                      if (xpos-8+j>=0 && row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                      if (row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
                     }
                   }
                 }
