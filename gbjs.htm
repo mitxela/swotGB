@@ -2167,23 +2167,34 @@ function cpu(){
                 // Bit4   Palette number  **Non CGB Mode Only** (0=OBP0, 1=OBP1)
 
                 var palette = att&(1<<4) ? OBP1 : OBP0 ;
-
-                if (att&(1<<6)) {//Y flip
-
+                var behind = att&(1<<7);
+                
+                if (att&(1<<6)) { // Y flip
+                  tileNum += (ypos-LY-1)*2 
                 }else{
                   tileNum += (LY-ypos+height)*2 
-                  var d1= MEM[tileNum], d2= MEM[tileNum+1],
-                      row = pixelDecoder[d1][d2];
-                  if (att&(1<<5)) { // x flip
-                    for (var j = 0; j<8; j++) {
+                }
+                var d1= MEM[tileNum], d2= MEM[tileNum+1],
+                  row = pixelDecoder[d1][d2];
+
+                if (att&(1<<5)) { // x flip
+                  for (var j = 0; j<8; j++) {
+                    if (behind) {
+                      if (dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
+                    }else{
                       if (row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                     }
-                  } else {
-                    for (var j = 0; j<8; j++) {
+                  }
+                } else {
+                  for (var j = 0; j<8; j++) {
+                    if (behind) { 
+                      if (dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                    } else {
                       if (row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
                     }
                   }
                 }
+                
 
                 
 
@@ -2339,7 +2350,7 @@ const ioMap={
 0xFF24:"NR50 ",
 0xFF25:"NR51 ",
 0xFF26:"NR52 ",
-0xFF3F:"Wave Pattern",
+//0xFF3F:"Wave Pattern",
 0xFF40:"LCDC ",
 0xFF41:"STAT ",
 0xFF42:"SCY ",
