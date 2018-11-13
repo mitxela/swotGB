@@ -27,9 +27,6 @@ canvas{
 
 
 <script>
-var instr_count = 0;
-var instr_log=false;
-
 var dpixels = new Uint8Array(160*144);
 
 var display = document.getElementById('display'), dctx = display.getContext('2d');
@@ -327,7 +324,7 @@ var MBCRamMode=0; //for MBC1
 var divPrescaler=0, timerPrescaler=0, timerSpeed=1, timerEnable=false;
 var LCD_enabled = false, LCD_lastmode=1, LCD_scan=0;
 var tileData =new Uint8Array((0x9800 - 0x8000)/16);
-var joypad_dpad = 0xf, joypad_buttons=0xf; // 0=pressed
+var joypad_dpad = 0xef, joypad_buttons=0xdf; // 0=pressed
 
 document.onkeydown=function(e){
   switch (e.keyCode){
@@ -382,9 +379,9 @@ function readMem(addr){
   // Joypad
   if (addr==0xFF00) {
     if (MEM[0xFF00]&0x20) {
-      return 0xE0|joypad_dpad
+      return joypad_dpad
     } else if (MEM[0xFF00]&0x10) {
-      return 0xD0|joypad_buttons
+      return joypad_buttons
     } else return 0xFF;
   }
 
@@ -662,6 +659,7 @@ function writeMem16(addr, dataH, dataL){
 }
 
 function doMBC(addr, data){
+
   switch (ROM[0x147]) {
 
   // Cartridge Type = ROM[0x147]
@@ -675,18 +673,19 @@ function doMBC(addr, data){
   // 02h  MBC1+RAM
   // 03h  MBC1+RAM+BATTERY
   case 1: case 2: case 3:
+
     if (addr <= 0x1FFF)
       RAMenabled = (data & 0x0F == 0xA) 
     else if (addr <= 0x3FFF){
       data &= 0x1F;
       if (data==0) data=1 // MBC1 translates bank 0 to bank 1 (apparently regardless of upper bits)
       // set lowest 5 bits of bank number
-      ROMbank = (ROMbank&0x1F)|data;
+      ROMbank = (ROMbank&0xE0)|(data&0x1F);
       ROMbankoffset = (ROMbank-1)*0x4000;
     } else if (addr<=0x5fff) {
       data &= 0x3
       if (MBCRamMode==0) {
-        ROMbank = (ROMbank&0xE0)|data<<5;
+        ROMbank = (ROMbank&0x1F)|(data<<5);
         ROMbankoffset = (ROMbank-1)*0x4000;
       } else {
         RAMbank=data;
@@ -748,7 +747,7 @@ var PC = 0
 var SP = 0
 
 var IME = false // Interrupt master enable
-
+var cpu_halted=false;
 
 
 const A = 0b111
@@ -1402,7 +1401,8 @@ function add_sp_n(){
 
 function halt() {
 // if interrupts disabled, stall 1 cycle, skip next instruction and continue
-  if (!IME) PC++
+  if (!IME) cpu_halted=true;
+  PC++;
   return 4
 }; 
 function stop(){
@@ -1954,9 +1954,10 @@ function soundStep(){ //256 times per second
 // DIV speed 16384 => CPU/256
 
 // 60FPS -> one frame is 69905 cycles
-
+var instr_count = 0;
 
 function triggerInterrupt(vector){
+  cpu_halted=false
   writeMem16(SP-=2, PC>>8, PC&0xFF)
   PC = vector; 
   IME=false
@@ -1967,12 +1968,13 @@ function triggerInterrupt(vector){
 
 function cpu(){
 
-  
-  //var cycles = opcodes[ readMem( PC ) ]();
+  var tmp = readMem(PC);
+  var cycles =4;
 
-      var tmp = readMem(PC);
-      var cycles = opcodes[tmp]();
-	if (typeof cycles ==="undefined") throw Error(`cycles! ${f(tmp,4)} @ ${f(PC,4)}`)
+  if (!cpu_halted) {
+    cycles = opcodes[tmp]();
+    if (typeof cycles ==="undefined") throw Error(`cycles! ${f(tmp,4)} @ ${f(PC,4)}`)
+  }
   
   // DIV  = 0xFF04 //Divider Register (R/W)
   // TIMA = 0xFF05 //Timer counter (R/W)
@@ -2072,7 +2074,7 @@ function cpu(){
           tileOffset =  0x8000;
           tileSigned = false;
         } else {
-          tileOffset =  0x8800;
+          tileOffset =  0x9000;
           tileSigned = true;
         }
         
@@ -2207,8 +2209,6 @@ function cpu(){
   }
 
 
-	if( PC==0x100){ instr_log=true; }
-	//if(instr_log) { console.log(f(PC,4)) }
   instr_count += cycles;
   return cycles
 }
