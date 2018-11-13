@@ -136,7 +136,7 @@ function setSound3Waveform() {
 
   
   for ( i = 0; i < FFTsize; i++ ) {
-    real[i] = samples[reverseTable[i]]/1024;
+    real[i] = samples[reverseTable[i]]/4096;
     imag[i] = 0;
   }
   
@@ -562,7 +562,7 @@ function writeMem(addr, data){
     // FF1C - NR32 - Channel 3 Select output level (R/W)
     if (addr==0xFF1C) {
       // Really we ought to bit-crush it, but whatever
-      if (sound[3].initialized) sound[3].amp( [ 0,0.125,0.25,0.5 ][((MEM[0xFF1C]>>5)&0x3)] )
+      if (sound[3].initialized) sound[3].amp( [ 0,0.5,0.25,0.125 ][((MEM[0xFF1C]>>5)&0x3)] )
       MEM[addr] = data
       return;
     }
@@ -580,7 +580,7 @@ function writeMem(addr, data){
         sound[3].initialized = true
         sound[3].freq(   65536/(2048-  (((data&0x7)<<8)+ MEM[0xFF1D])  )  )
 
-        sound[3].amp( [ 0,0.125,0.25,0.5 ][((MEM[0xFF1C]>>5)&0x3)] )
+        sound[3].amp( [ 0,0.5,0.25,0.15 ][((MEM[0xFF1C]>>5)&0x3)] )
 
         sound[3].lengthEnabled = (data&(1<<6)) !=0;
         sound[3].length = MEM[0xFF1B];
@@ -2439,7 +2439,7 @@ asdf=function(){}
 <button onclick="runto();return false">Run To...</button>
 <button onclick="requestStop=true; return false">Stop</button>
 <button onclick="qwert=debugData; debugData=asdf; asdf=qwert; return false">Debug</button>
-<input type='file' id=fileinput onchange='openFile(event)'>
+<input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
 
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
