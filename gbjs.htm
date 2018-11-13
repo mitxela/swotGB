@@ -2180,17 +2180,17 @@ function cpu(){
                 if (att&(1<<5)) { // x flip
                   for (var j = 0; j<8; j++) {
                     if (behind) {
-                      if (dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
+                      if (xpos-1-j>=0 && dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                     }else{
-                      if (row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
+                      if (xpos-1-j>=0 && row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                     }
                   }
                 } else {
                   for (var j = 0; j<8; j++) {
                     if (behind) { 
-                      if (dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                      if (xpos-8+j>=0 && dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
                     } else {
-                      if (row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                      if (xpos-8+j>=0 && row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
                     }
                   }
                 }
