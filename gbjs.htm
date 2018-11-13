@@ -629,8 +629,7 @@ function writeMem(addr, data){
       if (!LCD_enabled){ // Disabling the display sets it to mode 1
         // this should also probably set all pixels to white
         LCD_scan=0;
-        MEM[0xFF41] = (MEM[0xFF41] & 0x3) +1;
-
+        MEM[0xFF41] = (MEM[0xFF41] & 0xFC) +1;
       }
     }
   }
@@ -2168,7 +2167,7 @@ function cpu(){
         if (MEM[0xFF41] & (1<<5)) MEM[0xFF0F] |= 1<<1;
       }
 
-      MEM[0xFF41]&=0x3;
+      MEM[0xFF41]&=0xF8;
       MEM[0xFF41] += mode;
       LCD_lastmode=mode;
     }
