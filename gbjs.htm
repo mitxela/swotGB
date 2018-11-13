@@ -20,7 +20,7 @@ canvas{
 <pre id=stack></pre>
 
 
-<canvas id=display width=160 height=144 onclick='runto(1);'></canvas>
+<canvas id=display width=160 height=144 onclick='runto(1); debugOn=false'></canvas>
 
 <!--offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>-->
 <pre id=out></pre>
@@ -321,7 +321,7 @@ var RAMbankoffset = RAMbank*0x2000 - 0xA000;
 var RAMenabled=false;
 var MBCRamMode=0; //for MBC1
 
-var divPrescaler=0, timerPrescaler=0, timerSpeed=1, timerEnable=false;
+var divPrescaler=0, timerPrescaler=0, timerLength=1, timerEnable=false;
 var LCD_enabled = false, LCD_lastmode=1, LCD_scan=0;
 var tileData =new Uint8Array((0x9800 - 0x8000)/16);
 var joypad_dpad = 0xef, joypad_buttons=0xdf; // 0=pressed
@@ -428,9 +428,10 @@ function writeMem(addr, data){
   if (addr==0xFF04) {MEM[0xFF04]=0;return;}
   // Timer control
   if (addr==0xFF07) {
-    timerEnable = (data&(1<<2)!=0);
-    timerSpeed = [ 1, 64, 16, 4 ][ data&0x3 ];
-    MEM[addr] = data;
+    timerEnable = ((data&(1<<2))!=0);
+    timerLength = [ 1024, 16, 64, 256 ][ data&0x3 ];
+    timerPrescaler=timerLength; //+cycles for this instruction?
+    MEM[addr] = 0xF8|data;
     return;
   }
 
@@ -1995,8 +1996,8 @@ function cpu(){
     MEM[0xFF04]++;
   }
   if (timerEnable){
-    if (1023 < (timerPrescaler+= cycles*timerSpeed)) {
-      timerPrescaler-=1024;
+    if ((timerPrescaler-= cycles)<0) {
+      timerPrescaler+=timerLength;
       if (MEM[0xFF05]++ ==0xFF) {
         MEM[0xFF05]=MEM[0xFF06];
         // Set interrupt flag here
@@ -2178,18 +2179,22 @@ function cpu(){
                   row = pixelDecoder[d1][d2];
 
                 if (att&(1<<5)) { // x flip
-                  for (var j = Math.max(1-xpos,0); j<8; j++) {
-                    if (behind) {
+                  if (behind) {
+                    for (var j = Math.max(1-xpos,0); j<8; j++) {
                       if (dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
-                    }else{
+                    }
+                  }else{
+                    for (var j = Math.max(1-xpos,0); j<8; j++) {
                       if (row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                     }
                   }
                 } else {
-                  for (var j = Math.max(8-xpos,0); j<8; j++) {
-                    if (behind) { 
+                  if (behind) { 
+                    for (var j = Math.max(8-xpos,0); j<8; j++) {
                       if (dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
-                    } else {
+                    }
+                  } else {
+                    for (var j = Math.max(8-xpos,0); j<8; j++) {
                       if (row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
                     }
                   }
@@ -2396,7 +2401,13 @@ const ioMap={
 
 
 
-
+var debugOn=true;
+document.onkeypress=function(e){if(e.keyCode==27){
+    requestStop=true;
+    debugOn=true;
+    debugData();
+  }
+}
 
 
 function ascii(c){
@@ -2412,6 +2423,7 @@ function ascii(c){
 
   function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 (debugData=function(){
+  if (!debugOn) return;
 
   var debugOffset = PC&0xFF00;// parseInt(document.getElementById('dbgoff').value,16);
 
@@ -2501,12 +2513,12 @@ var openFile = function(event) {
 
 
 
-asdf=function(){}
+
 </script>
 <button onclick="cpu(); debugData(); return false">CPU</button>
 <button onclick="runto();return false">Run To...</button>
 <button onclick="requestStop=true; sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0); return false">Stop</button>
-<button onclick="qwert=debugData; debugData=asdf; asdf=qwert; return false">Debug</button>
+<button onclick="debugOn=!debugOn; return false">Debug</button>
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
 
 <script>
