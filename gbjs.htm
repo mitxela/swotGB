@@ -510,7 +510,7 @@ function writeMem(addr, data){
       // should we set each oscillator to amplitude zero too?
       audioCtx.suspend()
       // Zero all sound registers
-      for (var i=0xFF10;i<=0xFF26;i++) MEM[i]=0;
+      resetSoundRegisters();
     }
     return;
   }
@@ -521,8 +521,8 @@ function writeMem(addr, data){
       sound[1].sweepTime = (data>>4)&0x3;
       sound[1].sweepPrescaler = sound[1].sweepTime;
       sound[1].sweepDir = (data&(1<<3)) ? 0 : 1;
-      sound[1].sweepShift = Math.pow(2,data&0x3);
-      MEM[addr] = data
+      sound[1].sweepShift = data&0x3;
+      MEM[addr] = data &0x80
       return;
     }
     // FF11 - NR11 - Channel 1 Sound length/Wave pattern duty (R/W)
@@ -561,6 +561,7 @@ function writeMem(addr, data){
         sound[1].length = MEM[0xFF11]&0x1F;
 
         MEM[0xFF26] |= (1<<0) // flag sound 1 as on
+        if (sound[1].sweepShift) {sweepCalculate()}
       }
       MEM[addr] = data
       return;
@@ -844,6 +845,34 @@ function doMBC(addr, data){
 
   }
 }
+function resetSoundRegisters(){
+  
+   MEM[0xFF10] = 0x80   // NR10
+   MEM[0xFF11] = 0xBF   // NR11
+   MEM[0xFF12] = 0xF3   // NR12
+   MEM[0xFF13] = 0
+   MEM[0xFF14] = 0xBF   // NR14
+   MEM[0xFF15] = 0xFF // NA
+   MEM[0xFF16] = 0x3F   // NR21
+   MEM[0xFF17] = 0x00   // NR22
+   MEM[0xFF18] = 0
+   MEM[0xFF19] = 0xBF   // NR24
+   MEM[0xFF1A] = 0x7F   // NR30
+   MEM[0xFF1B] = 0xFF   // NR31
+   MEM[0xFF1C] = 0x9F   // NR32
+   MEM[0xFF1D] = 0
+   MEM[0xFF1E] = 0xBF   // NR33
+   MEM[0xFF1F] = 0xFF // NA
+   MEM[0xFF20] = 0xFF   // NR41
+   MEM[0xFF21] = 0x00   // NR42
+   MEM[0xFF22] = 0x00   // NR43
+   MEM[0xFF23] = 0xBF   // NR30
+   MEM[0xFF24] = 0x77   // NR50
+   MEM[0xFF25] = 0xF3   // NR51
+   MEM[0xFF26] = 0xF1   // NR52
+
+}
+
 
 
 
@@ -1979,6 +2008,24 @@ var bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0
 //for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 
+function sweepCalculate(){
+  //If the result of this formula is a value consisting of more than 11 bits, sound output is stopped and the Sound 1 ON flag of NR52 (bit 0) is reset.
+  //In a subtraction operation, if the subtrahend is less than 0, the result is the pre-calculation value X (t ) = X ( t - 1 ). However, if n = 0, shifting does not occur and the frequency is unchanged.
+
+  if (sound[1].sweepDir) {
+    sound[1].freqnum += (sound[1].freqnum >> sound[1].sweepShift);
+    if (sound[1].freqnum>0x7ff) {
+      sound[1].initialized=false;
+      MEM[0xFF26] &= ~(1<<0) // flag sound 1 as off
+      sound[1].amp(0)
+    } else sound[1].freq( 131072/(2048-sound[1].freqnum) )
+  } else {
+    sound[1].freqnum -= (sound[1].freqnum >> sound[1].sweepShift);
+    if (sound[1].freqnum<0) sound[1].freqnum += (sound[1].freqnum >> sound[1].sweepShift);
+    sound[1].freq( 131072/(2048-sound[1].freqnum) )
+  }
+}
+
 
 var soundPrescaler1=0, soundPrescaler2=0;
 function soundStep(){ //256 times per second
@@ -2030,23 +2077,7 @@ function soundStep(){ //256 times per second
 
         // X(t) = X(t-1) +/- X(t-1)/2^n
 
-//If the result of this formula is a value consisting of more than 11 bits, sound output is stopped and the Sound 1 ON flag of NR52 (bit 0) is reset.
-//In a subtraction operation, if the subtrahend is less than 0, the result is the pre-calculation value X (t ) = X ( t - 1 ). However, if n = 0, shifting does not occur and the frequency is unchanged.
-
-        if (sound[1].sweepDir) {
-          sound[1].freqnum += (sound[1].freqnum / sound[1].sweepShift);
-          if (sound[1].freqnum>0x7ff) {
-            sound[1].initialized=false;
-            MEM[0xFF26] &= ~(1<<0) // flag sound 1 as off
-            sound[1].amp(0)
-          } else sound[1].freq( 131072/(2048-sound[1].freqnum) )
-        } else {
-          sound[1].freqnum -= (sound[1].freqnum / sound[1].sweepShift);
-          if (sound[1].freqnum<0) sound[1].freqnum += (sound[1].freqnum >> sound[1].sweepShift);
-          sound[1].freq( 131072/(2048-sound[1].freqnum) )
-        }
-//console.log('sweep!', sound[1].freqnum)
-
+      sweepCalculate();
 
 
 
@@ -2638,6 +2669,7 @@ var openFile = function(event) {
     // According to BGB
     MEM[0xFF41] = 01
 
+    resetSoundRegisters()
 
 
 
@@ -2666,7 +2698,8 @@ function loadSram(e) {
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'><br><br>
 
 <a href='#' download='test.sav' onclick='this.href=saveSram();'>save</a>
-<input type='file' accept='.sav' onchange='loadSram(event)'><br>
+<a href='#' onclick='loadsav.click(); return false;'>load</a>
+<input type='file' id=loadsav style='display:none' accept='.sav' onchange='loadSram(event)'><br>
 
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
