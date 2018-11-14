@@ -723,7 +723,7 @@ function doMBC(addr, data){
   // 03h  MBC1+RAM+BATTERY
   case 1: case 2: case 3:
     if (addr <= 0x1FFF) {
-      RAMenabled = (data & 0x0F == 0xA) 
+      RAMenabled = ((data & 0x0F) == 0xA) 
     } else if (addr <= 0x3FFF){
       data &= 0x1F;
       if (data==0) data=1 // MBC1 translates bank 0 to bank 1 (apparently regardless of upper bits)
