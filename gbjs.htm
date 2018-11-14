@@ -602,8 +602,39 @@ function writeMem(addr, data){
       return;
     }
 
+    // Sound 4 - Noise
+    // FF20 - NR41 - Channel 4 Sound Length (R/W)
+    if (addr==0xFF20) {
+      MEM[addr] = data
+      return;
+    }
+    // FF21 - NR42 - Channel 4 Volume Envelope (R/W)
+    if (addr==0xFF21) {
+      MEM[addr] = data
+      sound[4].envDirection = (data&(1<<3)) ? 1: -1;
+      sound[4].envSpeed = data&0x7;
+      sound[4].envCounter = 0;
+      return;
+    }
+    // FF22 - NR43 - Channel 4 Polynomial Counter (R/W)
+    if (addr==0xFF22) {
+      sound[4].divRatio(data&0x3)
+      sound[4].polySteps(data&(1>>3))
+      sound[4].shiftFreq(data>>4)
+    }
+    // FF23 - NR44 - Channel 4 Counter/consecutive; Inital (R/W)
+    if (addr==0xFF23) {
+      sound[4].initialized = true
 
+      sound[4].env = MEM[0xFF21]>>4; //Default envelope value
+      sound[4].envCounter = 0;
+      sound[4].amp( sound[4].env/15 )
 
+      sound[4].lengthEnabled = (data&(1<<6)) !=0;
+      sound[4].length = MEM[0xFF20]&0x1F;
+      
+      MEM[0xFF26] |= (1<<3) // flag sound 4 as on
+    }
 
 
 
@@ -1912,6 +1943,14 @@ function soundStep(){ //256 times per second
       MEM[0xFF26] &= ~(1<<2) // flag sound 3 as off
     }
   }
+  if (sound[4].lengthEnabled) {
+    //console.log('sndlen4', sound[4].length)
+    if (++sound[4].length >=64) {
+      sound[4].lengthEnabled=false;
+      sound[4].amp(0)
+      MEM[0xFF26] &= ~(1<<3) // flag sound 4 as off
+    }
+  }
 
 
   if (soundPrescaler1++) {
@@ -1954,7 +1993,7 @@ function soundStep(){ //256 times per second
       // envelope resolution 1/64 second
 
 
-      for (var i of [1,2]) {
+      for (var i of [1,2,4]) {
 
         if (sound[i].initialized&&sound[i].envSpeed) {
           // counter is reset when speed changes
@@ -2354,6 +2393,7 @@ function run(){
   }
 
   if (PC != targ && !requestStop) window.requestAnimationFrame(run)
+  else {sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0);}
   debugData()
 }
 
@@ -2529,12 +2569,10 @@ var openFile = function(event) {
     //Overwrite first page with bootcode
     for (var i=0;i<256;i++) ROM[i]=bootCode[i];
 
-    MEM[0xFF41] = 01
     // According to BGB
-    //MEM[0xFF46] = 0xff
-    //MEM[0xFF47] = 0xfc
-    //MEM[0xFF48] = 0xff
-    //MEM[0xFF49] = 0xff
+    MEM[0xFF41] = 01
+
+
 
 
     debugData();
@@ -2552,7 +2590,7 @@ var openFile = function(event) {
 <button onclick="cpu(); debugData(); return false">CPU</button>
 <button onclick="cpu(); runto(0x40); return false">Frame</button>
 <button onclick="runto();return false">Run To...</button>
-<button onclick="requestStop=true; sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0); return false">Stop</button>
+<button onclick="requestStop=true; return false">Stop</button>
 <button onclick="debugOn=!debugOn; return false">Debug</button>
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
 
