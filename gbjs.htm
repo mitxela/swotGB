@@ -20,7 +20,7 @@ canvas{
 <pre id=stack></pre>
 
 
-<canvas id=display width=160 height=144 onclick='runto(1); debugOn=false'></canvas>
+<canvas id=display width=160 height=144 onclick='runto(0x10000); debugOn=false'></canvas>
 
 <!--offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>-->
 <pre id=out></pre>
@@ -239,7 +239,11 @@ sound[4].oscillator.onaudioprocess = function(e){
     output[i] = (seed = seed * 16807 % 0x7FFFFFFF)/0x3FFFFFFF  - 1;
   }
 }
-
+sound[1].sweepTime = 0
+sound[1].sweepDir = 1;
+sound[1].sweepShift = 0;
+sound[1].sweepPrescaler = 0;
+sound[1].freqnum = 0;
 sound[3].waveChanged=true;
 
 sound.final = audioCtx.createGain();
@@ -454,6 +458,11 @@ function writeMem(addr, data){
     if (!SoundEnabled) return;
     // FF10 - NR10 - Channel 1 Sweep register (R/W)
     if (addr == 0xFF10) {
+//console.log('sweep',f(PC,4),data, (data>>4)&0x3)
+      sound[1].sweepTime = (data>>4)&0x3;
+      sound[1].sweepPrescaler = sound[1].sweepTime;
+      sound[1].sweepDir = (data&(1<<3)) ? 0 : 1;
+      sound[1].sweepShift = Math.pow(2,data&0x3);
       MEM[addr] = data
       return;
     }
@@ -481,7 +490,8 @@ function writeMem(addr, data){
       //bit 7 is initialize
       if (data&(1<<7)) {
         sound[1].initialized = true
-        sound[1].freq(  131072/(2048-  (((data&0x7)<<8)+ MEM[0xFF13])  )  )
+        sound[1].freqnum=(((data&0x7)<<8)+ MEM[0xFF13]);
+        sound[1].freq(  131072/(2048-  sound[1].freqnum  )  )
         sound[1].env = MEM[0xFF12]>>4; // default envelope value
         sound[1].envCounter = 0;
         sound[1].amp( sound[1].env/15 )
@@ -1908,9 +1918,36 @@ function soundStep(){ //256 times per second
     soundPrescaler1=0;
     // sweep resolution 1/128 second
 
+    if (sound[1].initialized && sound[1].sweepTime ) {
+      if (--sound[1].sweepPrescaler<0) {
+
+      sound[1].sweepPrescaler += sound[1].sweepTime;
+
+        // X(t) = X(t-1) +/- X(t-1)/2^n
+
+//If the result of this formula is a value consisting of more than 11 bits, sound output is stopped and the Sound 1 ON flag of NR52 (bit 0) is reset.
+//In a subtraction operation, if the subtrahend is less than 0, the result is the pre-calculation value X (t ) = X ( t - 1 ). However, if n = 0, shifting does not occur and the frequency is unchanged.
+
+        if (sound[1].sweepDir) {
+          sound[1].freqnum += (sound[1].freqnum / sound[1].sweepShift);
+          if (sound[1].freqnum>0x7ff) {
+            sound[1].initialized=false;
+            MEM[0xFF26] &= ~(1<<0) // flag sound 1 as off
+            sound[1].amp(0)
+          } else sound[1].freq( 131072/(2048-sound[1].freqnum) )
+        } else {
+          sound[1].freqnum -= (sound[1].freqnum / sound[1].sweepShift);
+          if (sound[1].freqnum<0) sound[1].freqnum += (sound[1].freqnum >> sound[1].sweepShift);
+          sound[1].freq( 131072/(2048-sound[1].freqnum) )
+        }
+//console.log('sweep!', sound[1].freqnum)
 
 
 
+
+        
+      }
+    }
 
     if (soundPrescaler2++) {
       soundPrescaler2=0;
@@ -2289,7 +2326,7 @@ function runto(end){
   requestStop =false;
 
   var tcount=0;
-  targ=end?0x10000:parseInt(prompt('Address', f(targ,4)),16); 
+  targ=end?end:parseInt(prompt('Address', f(targ,4)),16); 
 
   run()
 }
@@ -2513,6 +2550,7 @@ var openFile = function(event) {
 
 </script>
 <button onclick="cpu(); debugData(); return false">CPU</button>
+<button onclick="cpu(); runto(0x40); return false">Frame</button>
 <button onclick="runto();return false">Run To...</button>
 <button onclick="requestStop=true; sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0); return false">Stop</button>
 <button onclick="debugOn=!debugOn; return false">Debug</button>
