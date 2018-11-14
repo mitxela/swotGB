@@ -130,14 +130,14 @@ var lfsr7bit = new Float32Array(127), lfsr15bit=new Float32Array(32767);
   do {
     bit  = ((lfsr >> 0) ^ (lfsr >> 1) ) & 1;
     lfsr =  (lfsr >> 1) | (bit << 6);
-    lfsr7bit[st++]=(bit/2-0.5);
+    lfsr7bit[st++]=(bit/4-0.25);
   } while (lfsr != start_state); // has a period of 127
 
   st=0;
   do {
     bit  = ((lfsr >> 0) ^ (lfsr >> 1)) & 1;
     lfsr =  (lfsr >> 1) | (bit << 14);
-    lfsr15bit[st++]=(bit/2-0.5);
+    lfsr15bit[st++]=(bit/4-0.25);
   } while (lfsr != start_state); // period of 32767
 
 })();
@@ -289,13 +289,16 @@ sound.pulses = [
 var qqq=0;
 var processLFSR7bit=function(e){
   var output = e.outputBuffer.getChannelData(0);
-  var j=Math.ceil(sound[4].bitPeriod);
+  //var j=Math.ceil(sound[4].bitPeriod);
+  var j=1/sound[4].bitPeriod;
+  var limit = j>1? 127/j :127;
 
-    for (var i = 0; i < 2048; i+=j) {
-      if ((++qqq)>=127) qqq-=127;
-      s = lfsr7bit[ qqq ]
-      for (var p=j;p--;) output[i+p] = s;
-    }
+  for (var i = 0; i < 2048; i++) {
+    qqq+=j
+    if (qqq>limit) qqq=0;
+    
+    output[i] = lfsr7bit[ Math.floor(qqq) ]
+  }
 
 }
 var processLFSR15bit=function(e){
@@ -304,7 +307,7 @@ var processLFSR15bit=function(e){
   
   for (var i = 0; i < 2048; i+=j) {
     if ((++qqq)>=32767) qqq-=32767;
-    s = lfsr15bit[ qqq ]
+    var s = lfsr15bit[ qqq ]
     for (var p=j;p--;) output[i+p] = s;
   }
 }
@@ -515,7 +518,6 @@ function writeMem(addr, data){
     if (!SoundEnabled) return;
     // FF10 - NR10 - Channel 1 Sweep register (R/W)
     if (addr == 0xFF10) {
-//console.log('sweep',f(PC,4),data, (data>>4)&0x3)
       sound[1].sweepTime = (data>>4)&0x3;
       sound[1].sweepPrescaler = sound[1].sweepTime;
       sound[1].sweepDir = (data&(1<<3)) ? 0 : 1;
@@ -539,16 +541,18 @@ function writeMem(addr, data){
     }
     // FF13 - NR13 - Channel 1 Frequency lo (Write Only)
     if (addr == 0xFF13) {
+      //sound[1].freqnum=(((MEM[0xFF14]&0x7)<<8)+ data);
+      //sound[1].freq(  131072/(2048-  sound[1].freqnum  )  )
       MEM[addr] = data
       return;
     }
     // FF14 - NR14 - Channel 1 Frequency hi (R/W)
     if (addr == 0xFF14) {
       //bit 7 is initialize
+      sound[1].freqnum=(((data&0x7)<<8)+ MEM[0xFF13]);
+      sound[1].freq(  131072/(2048-  sound[1].freqnum  )  )
       if (data&(1<<7)) {
         sound[1].initialized = true
-        sound[1].freqnum=(((data&0x7)<<8)+ MEM[0xFF13]);
-        sound[1].freq(  131072/(2048-  sound[1].freqnum  )  )
         sound[1].env = MEM[0xFF12]>>4; // default envelope value
         sound[1].envCounter = 0;
         sound[1].amp( sound[1].env/15 )
@@ -583,15 +587,16 @@ function writeMem(addr, data){
     }
     // FF18 - NR23 - Channel 2 Frequency lo data (W)
     if (addr == 0xFF18) {
+      //sound[2].freq(  131072/(2048-  (((MEM[0xFF19]&0x7)<<8)+ data)  )  )
       MEM[addr] = data
       return;
     }
     // FF19 - NR24 - Channel 2 Frequency hi data (R/W)
     if (addr == 0xFF19) {
+      sound[2].freq(  131072/(2048-  (((data&0x7)<<8)+ MEM[0xFF18])  )  )
       //bit 7 is initialize
       if (data&(1<<7)) {
         sound[2].initialized = true
-        sound[2].freq(  131072/(2048-  (((data&0x7)<<8)+ MEM[0xFF18])  )  )
         sound[2].env = MEM[0xFF17]>>4; //Default envelope value
         sound[2].envCounter = 0;
         sound[2].amp( sound[2].env/15 )
@@ -607,7 +612,7 @@ function writeMem(addr, data){
 
     // Sound 3 - user-defined waveform
     // "it can output a sound while changing its length, frequency, and level"
-    // not sure what changing its length means, and changing its frequency means re-initializing
+    // not sure what changing its length means
 
     // FF1A - NR30 - Channel 3 Sound on/off (R/W)
     if (addr==0xFF1A) {
@@ -637,16 +642,17 @@ function writeMem(addr, data){
 
     // FF1D - NR33 - Channel 3 Frequency's lower data (W)
     if (addr == 0xFF1D) {
+      //sound[3].freq(   65536/(2048-  (((MEM[0xFF1E]&0x7)<<8)+ data)  )  )
       MEM[addr] = data
       return;
     }
     // FF1E - NR34 - Channel 3 Frequency's higher data (R/W)
     if (addr == 0xFF1E) {
+      sound[3].freq(   65536/(2048-  (((data&0x7)<<8)+ MEM[0xFF1D])  )  )
       //bit 7 is initialize
       if (data&(1<<7)) {
 
         sound[3].initialized = true
-        sound[3].freq(   65536/(2048-  (((data&0x7)<<8)+ MEM[0xFF1D])  )  )
 
         sound[3].amp( [ 0,0.5,0.25,0.15 ][((MEM[0xFF1C]>>5)&0x3)] )
 
@@ -677,7 +683,7 @@ function writeMem(addr, data){
     if (addr==0xFF22) {
       sound[4].freq(data>>4, data&0x3)
       sound[4].polySteps(data&(1<<3))
-console.log(`setlfsr steps ${data&(1<<3)}, 4bit ${data>>4}, 3bit ${data&0x3}`,f(data))
+//console.log(`setlfsr steps ${data&(1<<3)}, 4bit ${data>>4}, 3bit ${data&0x3}`,f(data))
 
       MEM[addr] = data
       return;
