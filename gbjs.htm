@@ -2582,17 +2582,25 @@ var openFile = function(event) {
 
 
 
-
-
-
-
+function saveSram(){
+  var len = [0,2,8,32,128,64][ROM[0x149]]*1024 //won't work for mbc2
+  return 'data:application/octet-stream;base64,'+btoa(String.fromCharCode(...cartRAM.slice(0,len)))
+}
+function loadSram(e) {
+  var reader = new FileReader();
+  reader.onload = function(){ cartRAM = new Uint8Array(reader.result); };
+  reader.readAsArrayBuffer(e.target.files[0]);
+}
 </script>
 <button onclick="cpu(); debugData(); return false">CPU</button>
 <button onclick="cpu(); runto(0x40); return false">Frame</button>
 <button onclick="runto();return false">Run To...</button>
 <button onclick="requestStop=true; return false">Stop</button>
 <button onclick="debugOn=!debugOn; return false">Debug</button>
-<input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
+<input type='file' accept='.gb' id=fileinput onchange='openFile(event)'><br><br>
+
+<a href='#' download='test.sav' onclick='this.href=saveSram();'>save</a>
+<input type='file' accept='.sav' onchange='loadSram(event)'><br>
 
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
