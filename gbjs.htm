@@ -2369,51 +2369,48 @@ function cpu(){
           var ypos = MEM[i]-16+height;
           if ( LY >= ypos-height && LY < ypos) {
 
-            var xpos = MEM[i+1],
-                tileNum = 0x8000 + (MEM[i+2]&tileNumMask)*16,
+            var tileNum = 0x8000 + (MEM[i+2]&tileNumMask)*16,
+                xpos = MEM[i+1],
                 att = MEM[i+3];
             
-                // Bit7   OBJ-to-BG Priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
-                //        (Used for both BG and Window. BG color 0 is always behind OBJ)
-                // Bit6   Y flip          (0=Normal, 1=Vertically mirrored)
-                // Bit5   X flip          (0=Normal, 1=Horizontally mirrored)
-                // Bit4   Palette number  **Non CGB Mode Only** (0=OBP0, 1=OBP1)
+            // Bit7   OBJ-to-BG Priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
+            //        (Used for both BG and Window. BG color 0 is always behind OBJ)
+            // Bit6   Y flip          (0=Normal, 1=Vertically mirrored)
+            // Bit5   X flip          (0=Normal, 1=Horizontally mirrored)
+            // Bit4   Palette number  **Non CGB Mode Only** (0=OBP0, 1=OBP1)
 
-                var palette = att&(1<<4) ? OBP1 : OBP0 ;
-                var behind = att&(1<<7);
-                
-                if (att&(1<<6)) { // Y flip
-                  tileNum += (ypos-LY-1)*2 
-                }else{
-                  tileNum += (LY-ypos+height)*2 
+            var palette = att&(1<<4) ? OBP1 : OBP0 ;
+            var behind = att&(1<<7);
+            
+            if (att&(1<<6)) { // Y flip
+              tileNum += (ypos-LY-1)*2 
+            }else{
+              tileNum += (LY-ypos+height)*2 
+            }
+            var d1= MEM[tileNum], d2= MEM[tileNum+1],
+              row = pixelDecoder[d1][d2];
+
+            if (att&(1<<5)) { // x flip
+              if (behind) {
+                for (var j = 0; j<Math.min(xpos,8); j++) {
+                  if (dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                 }
-                var d1= MEM[tileNum], d2= MEM[tileNum+1],
-                  row = pixelDecoder[d1][d2];
-
-                if (att&(1<<5)) { // x flip
-                  if (behind) {
-                    for (var j = Math.max(1-xpos,0); j<8; j++) {
-                      if (dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
-                    }
-                  }else{
-                    for (var j = Math.max(1-xpos,0); j<8; j++) {
-                      if (row[ j ]) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
-                    }
-                  }
-                } else {
-                  if (behind) { 
-                    for (var j = Math.max(8-xpos,0); j<8; j++) {
-                      if (dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
-                    }
-                  } else {
-                    for (var j = Math.max(8-xpos,0); j<8; j++) {
-                      if (row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
-                    }
-                  }
+              }else{
+                for (var j = 0; j<Math.min(xpos,8); j++) {
+                  if (row[ j ]) dpixels[dpy + xpos -(j+1)] = palette[row[ j ]];
                 }
-                
-
-                
+              }
+            } else {
+              if (behind) { 
+                for (var j = Math.max(8-xpos,0); j<8; j++) {
+                  if (dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                }
+              } else {
+                for (var j = Math.max(8-xpos,0); j<8; j++) {
+                  if (row[ j ]) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                }
+              }
+            }
 
           }
         }
