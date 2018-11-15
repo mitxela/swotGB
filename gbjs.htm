@@ -446,7 +446,23 @@ document.onkeyup=function(e){
       joypad_buttons |=(1<<2); break;
   }
 }
+var doGamepad = function(){};
+window.addEventListener("gamepadconnected", function(e) {
+  var gp=navigator.getGamepads()[e.gamepad.index];
+  doGamepad = function (){
+    joypad_dpad=
+       (gp.axes[0]== 2?0:1) // right
+      +(gp.axes[0]==-1?0:2) // left
+      +(gp.axes[1]==-1?0:4) // up
+      +(gp.axes[1]== 2?0:8); // down
 
+    joypad_buttons=
+       (gp.buttons[0].pressed?0:1) // A
+      +(gp.buttons[2].pressed?0:2) // B
+      +(gp.buttons[6].pressed?0:4) // select
+      +(gp.buttons[7].pressed?0:8);// start
+  };
+});
 
 
 function readMem(addr){
@@ -2496,6 +2512,8 @@ var soundStepCountdown = soundStepClocks;
 var frameCountdown = frameClocks;
 
 function run(){
+  doGamepad()
+
   while (true){
     var cycles = cpu();
     soundStepCountdown -= cycles;
