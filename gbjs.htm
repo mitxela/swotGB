@@ -391,7 +391,7 @@ Bootcode:
 
 
 
-const MEM = new Uint8Array(0x10000); // Main address space
+var MEM = new Uint8Array(0x10000); // Main address space
 var FirstROMPage, ROM = new Uint8Array(512); //populate later
 var ROMbank = 1; 
 var ROMbankoffset = (ROMbank-1)*0x4000;
@@ -876,9 +876,9 @@ function resetSoundRegisters(){
 
 
 
-const REG = new Uint8Array(8);
+var REG = new Uint8Array(8);
 
-const FLAGS = {
+var FLAGS = {
   Z:false,
   N:false,
   H:false,
@@ -2323,7 +2323,14 @@ function cpu(){
       if ( MEM[0xFF40] & 2 ) { // Sprite display enabled
         
         // Render sprites
-        var height = MEM[0xFF40]&(1<<2) ? 16:8;
+        var height, tileNumMask;
+        if (MEM[0xFF40]&(1<<2)) {
+          height=16;
+          tileNumMask=0xFE; // in 8x16 mode, lowest bit of tile number is ignored
+        } else {
+          height=8;
+          tileNumMask=0xFF; 
+        }
 
         var OBP0 = [
           0,
@@ -2344,7 +2351,7 @@ function cpu(){
           if ( LY >= ypos-height && LY < ypos) {
 
             var xpos = MEM[i+1],
-                tileNum = 0x8000 + MEM[i+2]*16,
+                tileNum = 0x8000 + (MEM[i+2]&tileNumMask)*16,
                 att = MEM[i+3];
             
                 // Bit7   OBJ-to-BG Priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
@@ -2704,6 +2711,45 @@ function loadSram(e) {
   var reader = new FileReader();
   reader.onload = function(){ cartRAM = new Uint8Array(reader.result); };
   reader.readAsArrayBuffer(e.target.files[0]);
+}
+function saveState(){
+  localStorage.savestate= JSON.stringify({
+    PC:PC,
+    SP:SP,
+    REG: REG.join(),
+    FLAGS: FLAGS,
+    IME:IME,
+    cpu_halted:cpu_halted,
+    MEM: MEM.join(),
+    //ROM: ROM,  //too big for localstorage
+    ROMbank: ROMbank,
+    ROMbankoffset:ROMbankoffset,
+    cartRAM: cartRAM.join(),
+    RAMbank: RAMbank,
+    RAMbankoffset: RAMbankoffset,
+    MBCRamMode: MBCRamMode,
+    LCD_enabled: LCD_enabled,
+    LCD_lastmode: LCD_lastmode
+  })
+}
+function loadState(){
+  var all=JSON.parse(localStorage.savestate);
+  MEM = Uint8Array.from(all.MEM.split(","));
+  PC=all.PC;
+  SP=all.SP;
+  REG=Uint8Array.from(all.REG.split(","));
+  FLAGS=all.FLAGS;
+  IME=all.IME;
+  cpu_halted=cpu_halted;
+  //rom=rom
+  ROMbank= all.ROMbank;
+  ROMbankoffset= all.ROMbankoffset;
+  cartRAM= Uint8Array.from(all.cartRAM.split(","));
+  RAMbank= all.RAMbank;
+  RAMbankoffset= all.RAMbankoffset;
+  MBCRamMode= all.MBCRamMode;
+  LCD_enabled= all.LCD_enabled;
+  LCD_lastmode= all.LCD_lastmode;
 }
 </script>
 <button onclick="cpu(); debugData(); return false">CPU</button>
