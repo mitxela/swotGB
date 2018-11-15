@@ -812,12 +812,12 @@ function doMBC(addr, data){
       if (data==0) data=1 // MBC1 translates bank 0 to bank 1 (apparently regardless of upper bits)
       // set lowest 5 bits of bank number
       ROMbank = (ROMbank&0xE0)|(data&0x1F);
-      ROMbankoffset = (ROMbank-1)*0x4000;
+      ROMbankoffset = (ROMbank-1)*0x4000 %ROM.length;
     } else if (addr<=0x5fff) {
       data &= 0x3
       if (MBCRamMode==0) {
         ROMbank = (ROMbank&0x1F)|(data<<5);
-        ROMbankoffset = (ROMbank-1)*0x4000;
+        ROMbankoffset = (ROMbank-1)*0x4000  %ROM.length;
       } else {
         RAMbank=data;
         RAMbankoffset = RAMbank*0x2000 - 0xA000
@@ -827,6 +827,9 @@ function doMBC(addr, data){
       if (MBCRamMode==0) {
         RAMbank=0;
         RAMbankoffset = RAMbank*0x2000 - 0xA000
+      } else {
+        ROMbank &=0x1F;
+        ROMbankoffset = (ROMbank-1)*0x4000  %ROM.length;
       }
     }
     
@@ -2702,8 +2705,6 @@ var openFile = function(event) {
     ROM = new Uint8Array(reader.result);
     FirstROMPage = ROM.slice(0,256)
 
-
-
     //Overwrite first page with bootcode
     for (var i=0;i<256;i++) ROM[i]=bootCode[i];
 
@@ -2751,6 +2752,7 @@ function saveState(){
   })
 }
 function loadState(){
+  for (var i=0;i<256;i++) ROM[i]=FirstROMPage[i];
   var all=JSON.parse(localStorage.savestate);
   MEM = Uint8Array.from(all.MEM.split(","));
   PC=all.PC;
@@ -2776,11 +2778,16 @@ function loadState(){
 <button onclick="requestStop=true; return false">Stop</button>
 <button onclick="debugOn=!debugOn; debugData(); return false">Debug</button>
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'><br><br>
-
-<a href='#' download='test.sav' onclick='this.href=saveSram();'>save</a>
-<a href='#' onclick='loadsav.click(); return false;'>load</a>
-<input type='file' id=loadsav style='display:none' accept='.sav' onchange='loadSram(event)'><br>
-
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
 </script>
+
+.sav: 
+<a href='#' download='test.sav' onclick='this.href=saveSram();'>save</a>
+<a href='#' onclick='loadsav.click(); return false;'>load</a>
+<input type='file' id=loadsav style='display:none' accept='.sav' onchange='loadSram(event)'>
+
+state:
+<button onclick="saveState(); return false">quick save</button>
+<button onclick="loadState(); return false">quick load</button>
+
