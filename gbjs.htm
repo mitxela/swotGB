@@ -2242,6 +2242,9 @@ function cpu(){
       var LY = MEM[0xFF44];
       var dpy = LY*160;
 
+      var drawWindow = (MEM[0xFF40] & (1<<5)) && LY >= MEM[0xFF4A];
+      var bgStopX = drawWindow ? MEM[0xFF4B]-7 : 160;
+
       //  FF40 - LCDC - LCD Control (R/W)
       //
       //  Bit 7 - LCD Display Enable             (0=Off, 1=On)
@@ -2270,10 +2273,10 @@ function cpu(){
       ]
 
       function grabTile(n, offset){
-        if (!tileSigned){
-          var tileptr = offset+n*16;
+        if (tileSigned && n >127){
+          var tileptr = offset+(n-256)*16;
         }else{
-          var tileptr = offset+signedOffset(n)*16;
+          var tileptr = offset+n*16;
         }
         var d1 = MEM[tileptr ], d2 = MEM[tileptr +1]
         return pixelDecoder[d1][d2]
@@ -2302,7 +2305,7 @@ function cpu(){
 
         var pix = grabTile(MEM[ bgTileMapAddr + x ], tileOffset);
 
-        for (var i=0;i<160;i++) {
+        for (var i=0;i<bgStopX;i++) {
           dpixels[dpy + i] = bgpalette[pix[ xoff++ ]]
 
           if (xoff==8) {
@@ -2318,7 +2321,7 @@ function cpu(){
       // FF4A - WY
       // FF4B - WX
 
-      if ( (MEM[0xFF40] & (1<<5)) && LY >= MEM[0xFF4A]) { // Window display enable
+      if ( drawWindow ) { // Window display enable
         // Window Tile map display select
         var wdTileMapAddr = MEM[0xFF40]&(1<<6) ? 0x9C00 : 0x9800;
 
@@ -2330,7 +2333,7 @@ function cpu(){
 
         pix = grabTile(MEM[ wdTileMapAddr ], tileOffset);
 
-        for (var i=MEM[0xFF4B]-7;i<160;i++) {
+        for (var i=Math.max(0,bgStopX);i<160;i++) {
           dpixels[dpy + i] = bgpalette[pix[ xoff++ ]]
           if (xoff==8) {
             pix = grabTile(MEM[ ++wdTileMapAddr ], tileOffset);
