@@ -574,7 +574,7 @@ function writeMem(addr, data){
         sound[1].amp( sound[1].env/15 )
 
         sound[1].lengthEnabled = (data&(1<<6)) !=0;
-        sound[1].length = MEM[0xFF11]&0x1F;
+        sound[1].length = (64-(MEM[0xFF11]&0x3F));
 
         MEM[0xFF26] |= (1<<0) // flag sound 1 as on
         //if (sound[1].sweepShift) {sweepCalculate()}
@@ -619,8 +619,7 @@ function writeMem(addr, data){
         sound[2].amp( sound[2].env/15 )
 
         sound[2].lengthEnabled = (data&(1<<6)) !=0;
-        sound[2].length = MEM[0xFF16]&0x1F;
-
+        sound[2].length = (64-(MEM[0xFF16]&0x3F));
         MEM[0xFF26] |= (1<<1) // flag sound 2 as on
       }
       MEM[addr] = data
@@ -674,7 +673,7 @@ function writeMem(addr, data){
         sound[3].amp( [ 0,0.5,0.25,0.15 ][((MEM[0xFF1C]>>5)&0x3)] )
 
         sound[3].lengthEnabled = (data&(1<<6)) !=0;
-        sound[3].length = MEM[0xFF1B];
+        sound[3].length = (256-MEM[0xFF1B]);
 
         MEM[0xFF26] |= (1<<2) // flag sound 3 as on
       }
@@ -700,7 +699,6 @@ function writeMem(addr, data){
     if (addr==0xFF22) {
       sound[4].freq(data>>4, data&0x3)
       sound[4].polySteps(data&(1<<3))
-//console.log(`setlfsr steps ${data&(1<<3)}, 4bit ${data>>4}, 3bit ${data&0x3}`,f(data))
 
       MEM[addr] = data
       return;
@@ -714,7 +712,7 @@ function writeMem(addr, data){
       sound[4].amp( sound[4].env/15 )
 
       sound[4].lengthEnabled = (data&(1<<6)) !=0;
-      sound[4].length = MEM[0xFF20]&0x1F;
+      sound[4].length = (64-(MEM[0xFF20]&0x3F));
       
       MEM[0xFF26] |= (1<<3) // flag sound 4 as on
     }
@@ -2090,23 +2088,14 @@ function soundStep(){ //256 times per second
 
     if (sound[1].initialized && sound[1].sweepTime ) {
       if (--sound[1].sweepPrescaler<0) {
-
-      sound[1].sweepPrescaler += sound[1].sweepTime;
-
-        // X(t) = X(t-1) +/- X(t-1)/2^n
-
-      sweepCalculate();
-
-
-
-        
+        sound[1].sweepPrescaler += sound[1].sweepTime;
+        sweepCalculate();
       }
     }
 
     if (soundPrescaler2++) {
       soundPrescaler2=0;
       // envelope resolution 1/64 second
-
 
       for (var i of [1,2,4]) {
 
