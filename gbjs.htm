@@ -2369,7 +2369,7 @@ function cpu(){
         ];
 
         // OAM 4 bytes per sprite, 40 sprites
-        for (var i=0xFE9C;i>0xFE00;i-=4) {
+        for (var i=0xFE9C;i>=0xFE00;i-=4) {
           var ypos = MEM[i]-16+height;
           if ( LY >= ypos-height && LY < ypos) {
 
