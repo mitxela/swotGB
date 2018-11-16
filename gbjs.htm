@@ -543,7 +543,7 @@ function writeMem(addr, data){
     }
     // FF11 - NR11 - Channel 1 Sound length/Wave pattern duty (R/W)
     if (addr == 0xFF11) {
-      MEM[addr] = data&0xC0;
+      MEM[addr] = data;
       sound[1].duty(data>>6)
       return;
     }
@@ -2051,29 +2051,33 @@ function soundStep(){ //256 times per second
   // Sound length = (64 - t1) x (1/256) sec
 
   if (sound[1].lengthEnabled) {
-    if (++sound[1].length >=64) {
+    if (--sound[1].length <=0) {
       sound[1].lengthEnabled=false;
+      sound[1].initialized=false;
       sound[1].amp(0)
       MEM[0xFF26] &= ~(1<<0) // flag sound 1 as off
     }
   }
   if (sound[2].lengthEnabled) {
-    if (++sound[2].length >=64) {
+    if (--sound[2].length <=0) {
       sound[2].lengthEnabled=false;
+      sound[2].initialized=false;
       sound[2].amp(0)
       MEM[0xFF26] &= ~(1<<1) // flag sound 2 as off
     }
   }
   if (sound[3].lengthEnabled) {
-    if (++sound[3].length >=256) {
+    if (--sound[3].length <=0) {
       sound[3].lengthEnabled=false;
+      sound[3].initialized=false;
       sound[3].amp(0)
       MEM[0xFF26] &= ~(1<<2) // flag sound 3 as off
     }
   }
   if (sound[4].lengthEnabled) {
-    if (++sound[4].length >=64) {
+    if (--sound[4].length <=0) {
       sound[4].lengthEnabled=false;
+      sound[4].initialized=false;
       sound[4].amp(0)
       MEM[0xFF26] &= ~(1<<3) // flag sound 4 as off
     }
