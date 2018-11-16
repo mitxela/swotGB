@@ -2355,7 +2355,8 @@ function cpu(){
           (MEM[0xFF49]>>2)&3,
           (MEM[0xFF49]>>4)&3,
           (MEM[0xFF49]>>6)&3
-        ];
+        ],
+        background=bgpalette[0];
 
         // OAM 4 bytes per sprite, 40 sprites
         for (var i=0xFE9C;i>=0xFE00;i-=4) {
@@ -2386,7 +2387,8 @@ function cpu(){
             if (att&(1<<5)) { // x flip
               if (behind) {
                 for (var j = 0; j<Math.min(xpos,8); j++) {
-                  if (dpixels[dpy + xpos -1 - j] == 0) dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
+                  if (dpixels[dpy + xpos -1 - j] == background && row[j]) 
+                    dpixels[dpy + xpos -1 - j] = palette[row[ j ]];
                 }
               }else{
                 for (var j = 0; j<Math.min(xpos,8); j++) {
@@ -2396,7 +2398,8 @@ function cpu(){
             } else {
               if (behind) { 
                 for (var j = Math.max(8-xpos,0); j<8; j++) {
-                  if (dpixels[dpy + xpos -8 + j] == 0) dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
+                  if (dpixels[dpy + xpos -8 + j] == background && row[j]) 
+                    dpixels[dpy + xpos -8 + j] = palette[row[ j ]];
                 }
               } else {
                 for (var j = Math.max(8-xpos,0); j<8; j++) {
