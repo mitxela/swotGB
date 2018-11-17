@@ -328,13 +328,14 @@ sound[1].sweepPrescaler = 0;
 sound[1].freqnum = 0;
 sound[3].waveChanged=true;
 
-sound.final = audioCtx.createGain();
-sound.volume = function(v){ sound.final.gain.setValueAtTime(v, audioCtx.currentTime) }
+sound.SO1 = audioCtx.createGain()
+sound.SO2 = audioCtx.createGain()
 
 for (var i=1;i<=4;i++){
   sound[i].amp(0)
   sound[i].oscillator.connect(sound[i].gainNode)
-  sound[i].gainNode.connect(sound.final)
+  sound[i].gainNode.connect(sound.SO1)
+  sound[i].gainNode.connect(sound.SO2)
 
   sound[i].initialized = false;
   sound[i].lengthEnabled = false;
@@ -349,6 +350,12 @@ sound[1].oscillator.start()
 sound[2].oscillator.start()
 sound[3].oscillator.start()
 
+
+
+
+sound.final = audioCtx.createChannelMerger(2)
+sound.SO1.connect(sound.final, 0, 1)
+sound.SO2.connect(sound.final, 0, 0)
 
 sound.final.connect(audioCtx.destination)
 
@@ -733,15 +740,31 @@ function writeMem(addr, data){
        //  Bit 6-4 - SO2 output level (volume)  (0-7)
        //  Bit 3   - Output Vin to SO1 terminal (1=Enable)
        //  Bit 2-0 - SO1 output level (volume)  (0-7)
-       // cheating here - ignore Vin, average left and right volume levels
-      sound.volume(( (data&0x7) + ((data>>4)&0x7) )/14)
+
+      // is level zero mute ? "minimum level"
+      sound.SO2.gain.setValueAtTime(((data>>4)&0x7)/7, audioCtx.currentTime)
+      sound.SO1.gain.setValueAtTime((data&0x7)/7,      audioCtx.currentTime)
       MEM[addr] = data; 
       return
     }
 
     // FF25 - NR51 - Selection of Sound output terminal (R/W)
     if (addr == 0xff25) {
-      // Worry later, leave it mono for now
+
+      var con = (MEM[0xff25]^data) & data;
+      var dis = (MEM[0xff25]^data) & (~data);
+
+      for (var i=0;i<4;i++) {
+        if (con&(1<<i))
+          sound[i+1].gainNode.connect(sound.SO1)
+        if (dis&(1<<i))
+          sound[i+1].gainNode.disconnect(sound.SO1)
+        if (con&(1<<(4+i)))
+          sound[i+1].gainNode.connect(sound.SO2)
+        if (dis&(1<<(4+i)))
+          sound[i+1].gainNode.disconnect(sound.SO2)
+      }
+
       MEM[addr] = data; 
       return
     }
