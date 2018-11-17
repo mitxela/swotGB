@@ -1193,8 +1193,8 @@ function incdec(r,offset) {
 
 function incdec_process_8bit(a,offset) {
     var result = a+offset;
-    FLAGS.H = (a &(1<<4)) != (result &(1<<4));
-    FLAGS.N = offset==-1;
+    FLAGS.H = !!(((a&0x0F) +offset) & 0x10)
+    FLAGS.N = offset == -1
     FLAGS.Z = ((result & 0xff) == 0)
     return result;
 }
@@ -1414,6 +1414,15 @@ const SLA = 5
 const SRA = 6
 const SRL = 7
 
+function shift_fast(op, a){
+  return function(){
+    REG[a] = shift_process(op, REG[a])
+    FLAGS.Z=false // Bizarre, but correct
+    PC++
+    return 4
+  }
+}
+
 function shift(op, a){
   if (a==HL) return function(){
     var addr= (REG[H]<<8)+REG[L];
@@ -1465,7 +1474,7 @@ function shift_process(op, a){
 
   FLAGS.N=false
   FLAGS.H=false
-  FLAGS.Z= a==0
+  FLAGS.Z= (a&0xFF)==0
   return a
 }
 
@@ -1492,10 +1501,9 @@ function cpl(){
 }
 function addHL(a,b){
   if (a==SPr) return function(){
-    var l = REG[L] + (SP&0xFF);
-    REG[L] = l;
-    var h = REG[H] + (SP>>8) + (l>255?1:0)
-    FLAGS.H = (REG[H] &(1<<4)) != (h &(1<<4))
+    var c = (REG[L] += (SP&0xFF))>255?1:0;
+    var h = REG[H] + (SP>>8) + c
+    FLAGS.H = !!(((REG[H]&0x0F) + ((SP>>8)&0x0F) + c) & 0x10)
     REG[H] = h;
     FLAGS.C = (h>255)
     FLAGS.N=false
@@ -1503,10 +1511,9 @@ function addHL(a,b){
     return 8
   }
   return function(){
-    var l = REG[L] + REG[b];
-    REG[L] = l;
-    var h = REG[H] + REG[a] + (l>255?1:0)
-    FLAGS.H = (REG[H] &(1<<4)) != (h &(1<<4))
+    var c = (REG[L]+= REG[b])>255?1:0;
+    var h = REG[H] + REG[a] + c
+    FLAGS.H = !!(((REG[H]&0x0F) + (REG[a]&0x0F) + c) & 0x10)
     REG[H] = h;
     FLAGS.C = (h>255)
     FLAGS.N=false
@@ -1531,26 +1538,37 @@ function daa(){
   PC++
   return 4
 }
-function ld_ind_sp(){
+function ld_imm_sp(){
   writeMem16( readMem(PC+1)+(readMem(PC+2)<<8) , SP>>8, SP&0xFF );
-  PC+=2
+  PC+=3
   return 20
 }
 function ld_hl_spdd(){
-  var n = SP + signedOffset(readMem(PC+1))
+  var b = signedOffset(readMem(PC+1));
+
+  FLAGS.H= !!(((SP&0x0F) + (b&0x0F)) &0x010)
+  FLAGS.C= !!(((SP&0xFF) + (b&0xFF)) &0x100)
+
+  var n = SP + b
   REG[H] =(n>>8)
   REG[L] =n&0xFF
+
   FLAGS.N=false
   FLAGS.Z=false
-  //H, C Flags ambiguous in pdf
   PC+=2
   return 12
 }
 function add_sp_n(){
-  SP += signedOffset(readMem(PC+1))
+  var b=signedOffset(readMem(PC+1))
+
+  FLAGS.H= !!(((SP&0x0F) + (b&0x0F)) &0x010)
+  FLAGS.C= !!(((SP&0xFF) + (b&0xFF)) &0x100)
+
+  SP += b
   FLAGS.N=false
   FLAGS.Z=false
-  //H, C Flags ambiguous
+
+  SP&=0xFFFF
   PC+=2
   return 16
 }
@@ -1575,15 +1593,15 @@ opcodes[ 0x03 ] = inc16(B,C);
 opcodes[ 0x04 ] = inc(B);
 opcodes[ 0x05 ] = dec(B);
 opcodes[ 0x06 ] = ld(B, Immediate);
-opcodes[ 0x07 ] = shift(RLC, A) //rlca
-opcodes[ 0x08 ] = ld_ind_sp; //LD   (nn),SP
+opcodes[ 0x07 ] = shift_fast(RLC, A) //rlca
+opcodes[ 0x08 ] = ld_imm_sp; //LD   (nn),SP
 opcodes[ 0x09 ] = addHL(B,C);
 opcodes[ 0x0A ] = ld_from_mem(A, B, C);
 opcodes[ 0x0B ] = dec16(B,C);
 opcodes[ 0x0C ] = inc(C);
 opcodes[ 0x0D ] = dec(C);
 opcodes[ 0x0E ] = ld(C, Immediate);
-opcodes[ 0x0F ] = shift(RRC, A);
+opcodes[ 0x0F ] = shift_fast(RRC, A);
 
 
 opcodes[ 0x10 ] = stop;
@@ -1593,7 +1611,7 @@ opcodes[ 0x13 ] = inc16(D,E);
 opcodes[ 0x14 ] = inc(D);
 opcodes[ 0x15 ] = dec(D);
 opcodes[ 0x16 ] = ld(D, Immediate);
-opcodes[ 0x17 ] = shift(RL, A) 
+opcodes[ 0x17 ] = shift_fast(RL, A) 
 opcodes[ 0x18 ] = jr;
 opcodes[ 0x19 ] = addHL(D,E); //ADD HL, DE
 opcodes[ 0x1A ] = ld_from_mem(A, D, E);
@@ -1601,7 +1619,7 @@ opcodes[ 0x1B ] = dec16(D,E);
 opcodes[ 0x1C ] = inc(E);
 opcodes[ 0x1D ] = dec(E);
 opcodes[ 0x1E ] = ld(E, Immediate);
-opcodes[ 0x1F ] = shift(RR, A);
+opcodes[ 0x1F ] = shift_fast(RR, A);
 
 opcodes[ 0x20 ] = jrNZ;
 opcodes[ 0x21 ] = ld16(H,L,Immediate);
