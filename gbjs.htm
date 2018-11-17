@@ -2254,12 +2254,13 @@ function cpu(){
     var mode=0, coincidence=false, draw=false;
     if (LCD_scan <= 80) mode = 2
     else if (LCD_scan <= 252) mode = 3
-    else if (LCD_scan < 456) mode = 0
-    else {
+    else if (LCD_scan < 456) {
+      draw = (LCD_lastmode!=0)
+      mode = 0
+    } else {
       mode = 2
       LCD_scan -= 456;
       MEM[0xFF44] ++;
-      draw=true;
       if (MEM[0xFF44] > 153) MEM[0xFF44] =0;
       coincidence = (MEM[0xFF44] == MEM[0xFF45]);
     }
