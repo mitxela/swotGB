@@ -797,15 +797,13 @@ function doMBC(addr, data){
 
   // Cartridge Type = ROM[0x147]
 
-  // 00h  ROM ONLY
-  case 0:
+  case 0: // ROM ONLY
     // do any type 0 carts have switchable ram?
   break;
 
-  // 01h  MBC1
-  // 02h  MBC1+RAM
-  // 03h  MBC1+RAM+BATTERY
-  case 1: case 2: case 3:
+  case 0x01: //  MBC1
+  case 0x02: //  MBC1+RAM
+  case 0x03: //  MBC1+RAM+BATTERY
     if (addr <= 0x1FFF) {
       RAMenabled = ((data & 0x0F) == 0xA) 
     } else if (addr <= 0x3FFF){
@@ -836,30 +834,50 @@ function doMBC(addr, data){
     
   break;
 
-  // 05h  MBC2
-  // 06h  MBC2+BATTERY
-  // 08h  ROM+RAM
-  // 09h  ROM+RAM+BATTERY
-  // 0Bh  MMM01
-  // 0Ch  MMM01+RAM
-  // 0Dh  MMM01+RAM+BATTERY
-  // 0Fh  MBC3+TIMER+BATTERY
-  // 10h  MBC3+TIMER+RAM+BATTERY
-  // 11h  MBC3
-  // 12h  MBC3+RAM
-  // 13h  MBC3+RAM+BATTERY
-  // 19h  MBC5
-  // 1Ah  MBC5+RAM
-  // 1Bh  MBC5+RAM+BATTERY
-  // 1Ch  MBC5+RUMBLE
-  // 1Dh  MBC5+RUMBLE+RAM
-  // 1Eh  MBC5+RUMBLE+RAM+BATTERY
-  // 20h  MBC6
-  // 22h  MBC7+SENSOR+RUMBLE+RAM+BATTERY
-  // FCh  POCKET CAMERA
-  // FDh  BANDAI TAMA5
-  // FEh  HuC3
-  // FFh  HuC1+RAM+BATTERY
+  // case 0x05: //  MBC2
+  // case 0x06: //  MBC2+BATTERY
+
+  // case 0x08: //  ROM+RAM
+  // case 0x09: //  ROM+RAM+BATTERY
+  // case 0x0B: //  MMM01
+  // case 0x0C: //  MMM01+RAM
+  // case 0x0D: //  MMM01+RAM+BATTERY
+  // case 0x0F: //  MBC3+TIMER+BATTERY
+  // case 0x10: //  MBC3+TIMER+RAM+BATTERY
+  case 0x11: //  MBC3
+  case 0x12: //  MBC3+RAM
+  case 0x13: //  MBC3+RAM+BATTERY
+
+    if (addr <= 0x1FFF) {
+      RAMenabled = ((data & 0x0F) == 0xA) 
+    } else if (addr <= 0x3FFF){
+      if (data==0) data=1 // allows access to banks 0x20, 0x40, 0x60
+      ROMbank = data&0x7F;
+      ROMbankoffset = (ROMbank-1)*0x4000 %ROM.length;
+    } else if (addr<=0x5fff) {
+      if (data < 8) {
+        RAMbank=data;
+        RAMbankoffset = RAMbank*0x2000 - 0xA000
+      } else{
+        // RTC registers here
+      }
+    } else {
+      // RTC latch
+    }
+  break;
+
+  // case 0x19: //  MBC5
+  // case 0x1A: //  MBC5+RAM
+  // case 0x1B: //  MBC5+RAM+BATTERY
+  // case 0x1C: //  MBC5+RUMBLE
+  // case 0x1D: //  MBC5+RUMBLE+RAM
+  // case 0x1E: //  MBC5+RUMBLE+RAM+BATTERY
+  // case 0x20: //  MBC6
+  // case 0x22: //  MBC7+SENSOR+RUMBLE+RAM+BATTERY
+  // case 0xFC: //  POCKET CAMERA
+  // case 0xFD: //  BANDAI TAMA5
+  // case 0xFE: //  HuC3
+  // case 0xFF: //  HuC1+RAM+BATTERY
 
     default: throw Error("Unimplemented memory controller");
 
