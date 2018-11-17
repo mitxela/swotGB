@@ -45,10 +45,15 @@ function renderDisplayCanvas() {
   //  2  Dark gray
   //  3  Black
 
-  for (i=0;i<160*144;i++){
-    dImgData.data[4*i  ] = [224,136,52, 8 ][dpixels[i]]
-    dImgData.data[4*i+1] = [248,192,104,24][dpixels[i]]
-    dImgData.data[4*i+2] = [208,112,86, 32][dpixels[i]]
+  var R = [224,136,52, 8 ],
+      G = [248,192,104,24],
+      B = [208,112,86, 32];
+
+  for (var i=0,j=0;i<160*144;i++){
+    dImgData.data[j++ ] = R[dpixels[i]]
+    dImgData.data[j++ ] = G[dpixels[i]]
+    dImgData.data[j   ] = B[dpixels[i]]
+    j+=2
   }
   dctx.putImageData(dImgData,0,0)
 }
