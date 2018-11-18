@@ -32,6 +32,8 @@ html,body{overflow:hidden}
 <script>
 var dpixels = new Uint8Array(160*144);
 
+var limitFrameRate = true;
+
 var display = document.getElementById('display'), dctx = display.getContext('2d');
 
 var dImgData = dctx.getImageData(0,0,160,144);
@@ -2563,9 +2565,11 @@ function cpu(){
 }
 
 
-var requestStop =false;
+var requestStop = true;
 var targ=0x8e
 function runto(end){
+  if (!requestStop){ return; }
+
   requestStop =false;
 
   var tcount=0;
@@ -2598,8 +2602,15 @@ function run(){
     if (PC == targ) break;
   }
 
-  if (PC != targ && !requestStop) window.requestAnimationFrame(run)
-  else {sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0);}
+  if (PC != targ && !requestStop) {
+    if (limitFrameRate){
+      window.requestAnimationFrame(run);
+    }else{
+      window.setTimeout(run, 0);
+    }
+  } else {
+    sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0);
+  }
   debugData()
 }
 
@@ -2842,6 +2853,7 @@ function loadState(){
 <button onclick="runto();return false">Run To...</button>
 <button onclick="requestStop=true; return false">Stop</button>
 <button onclick="debugOn=!debugOn; debugData(); return false">Debug</button>
+<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked">Limit framerate</label>
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'><br><br>
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
