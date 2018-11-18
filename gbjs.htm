@@ -463,10 +463,10 @@ window.addEventListener("gamepadconnected", function(e) {
   var gp=navigator.getGamepads()[e.gamepad.index];
   doGamepad = function (){
     joypad_dpad=
-       (gp.axes[0]== 2?0:1) // right
-      +(gp.axes[0]==-1?0:2) // left
-      +(gp.axes[1]==-1?0:4) // up
-      +(gp.axes[1]== 2?0:8); // down
+       (gp.axes[0] > 0 ?0:1) // right
+      +(gp.axes[0] < 0 ?0:2) // left
+      +(gp.axes[1] < 0 ?0:4) // up
+      +(gp.axes[1] > 0 ?0:8); // down
 
     joypad_buttons=
        (gp.buttons[0].pressed?0:1) // A
