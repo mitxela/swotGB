@@ -12,18 +12,21 @@ canvas{
   image-rendering: crisp-edges;
 }
 
-#io{position:absolute;left:700px;height:400px;overflow-y:scroll}
-#stack{position:absolute;left:1000px;height:400px;overflow-y:scroll}
+#out{float: left}
+#io{float: left;height:400px;overflow-y:scroll}
+#stack{float: left;height:400px;overflow-y:scroll}
+
+html,body{overflow:hidden}
 
 </style>
+<canvas id=display width=160 height=144 onclick='runto(0x10000); debugOn=false'></canvas>
+<pre id=out></pre>
 <pre id=io></pre>
 <pre id=stack></pre>
 
 
-<canvas id=display width=160 height=144 onclick='runto(0x10000); debugOn=false'></canvas>
 
 <!--offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>-->
-<pre id=out></pre>
 
 
 <script>
