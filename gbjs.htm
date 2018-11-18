@@ -1,15 +1,17 @@
 <!doctype html><meta charset=utf-8>
 <style>
-canvas{
-  width:480px;
-  height:432px;
-  border:3px solid #ccc;
-  float:right; margin-right:100px;
+#display{
+  width: 480px; height: 432px;
+  display: block;
 
   image-rendering: -moz-crisp-edges;
   image-rendering: -webkit-crisp-edges;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+#displayBackground{
+  border: 3px solid #ccc;
+  float: right; margin-right: 100px;
 }
 
 #out{float: left}
@@ -19,7 +21,10 @@ canvas{
 html,body{overflow:hidden}
 
 </style>
-<canvas id=display width=160 height=144 onclick='runto(0x10000); debugOn=false'></canvas>
+<div id=displayBackground><canvas id=display
+    width=160 height=144
+    onclick="runto(0x10000); debugOn=false"
+    ondblclick="fullScreen(this)"></canvas></div>
 <pre id=out></pre>
 <pre id=io></pre>
 <pre id=stack></pre>
@@ -30,9 +35,16 @@ html,body{overflow:hidden}
 
 
 <script>
+
+function fullScreen(elem){
+  debugOn = false;
+  (elem.requestFullscreen || elem.mozRequestFullScreen || elem.webkitRequestFullscreen || elem.msRequestFullscreen || (()=>{})).apply(elem);
+}
+
 var dpixels = new Uint8Array(160*144);
 
 var limitFrameRate = true;
+var showFrameRate = false;
 
 var display = document.getElementById('display'), dctx = display.getContext('2d');
 
@@ -43,6 +55,14 @@ for (i=0;i<160*144;i++){
 }
 
 dctx.putImageData(dImgData,0,0)
+
+// 60FPS -> one frame is 69905 cycles
+var instr_count = 0;
+
+var last_frame_time = 0;
+var frame = 0;
+var frameRate = 0;
+const sampleFrames = 5;
 
 function renderDisplayCanvas() {
   //  0  White
@@ -61,6 +81,21 @@ function renderDisplayCanvas() {
     j+=2
   }
   dctx.putImageData(dImgData,0,0)
+
+  if (++frame >= sampleFrames){
+    frame = 0;
+    var time = performance.now()
+    frameRate = ((1000 * sampleFrames / (time - last_frame_time)) + frameRate) / 2;
+    last_frame_time = time;
+  }
+
+  if(showFrameRate) {
+    dctx.font = '8px monospace';
+    dctx.fillStyle = 'rgba(0,0,0,0.4)'
+    dctx.fillRect(0,0,30,8);
+    dctx.fillStyle = '#fff'
+    dctx.fillText(frameRate.toFixed(2), 1, 7, 160);
+  }
 }
 
 
@@ -2207,12 +2242,6 @@ function soundStep(){ //256 times per second
 
 
 
-// Clock speed 4.194304 MHz
-// DIV speed 16384 => CPU/256
-
-// 60FPS -> one frame is 69905 cycles
-var instr_count = 0;
-
 function triggerInterrupt(vector){
   cpu_halted=false
   writeMem16(SP-=2, PC>>8, PC&0xFF)
@@ -2578,6 +2607,10 @@ function runto(end){
   run()
 }
 
+
+// Clock speed 4.194304 MHz
+// DIV speed 16384 => CPU/256
+
 const soundStepClocks = 4194304/256;
 const frameClocks = 4194304/60;
 var soundStepCountdown = soundStepClocks;
@@ -2702,23 +2735,15 @@ document.onkeypress=function(e){if(e.keyCode==27){
 
 
 function ascii(c){
-//  return (c>=32&&c<=126) ?
-//    String.fromCharCode(c).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-//    :"."
-
   return ".................................!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~.€.‚ƒ„…†‡ˆ‰Š‹Œ.Ž..‘’“”•–—˜™š›œ.žŸ ¡¢£¤¥¦§¨©ª«¬.®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ".charAt(c)
   .replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
 }
-
 
   function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 (debugData=function(){
   if (!debugOn) return;
 
   var debugOffset = PC&0xFF00;// parseInt(document.getElementById('dbgoff').value,16);
-
-
   var debug = "";
   for (var j=0;j<16;j++) {
 
@@ -2849,11 +2874,11 @@ function loadState(){
 }
 </script>
 <button onclick="cpu(); debugData(); return false">CPU</button>
-<button onclick="cpu(); runto(0x40); return false">Frame</button>
+<button onclick="requestStop ? run() : (requestStop=true); return false">Stop / Frame</button>
 <button onclick="runto();return false">Run To...</button>
-<button onclick="requestStop=true; return false">Stop</button>
 <button onclick="debugOn=!debugOn; debugData(); return false">Debug</button>
-<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked">Limit framerate</label>
+<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked">Limit FPS</label>
+<label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked">Show FPS</label>
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'><br><br>
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
