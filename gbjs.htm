@@ -1661,7 +1661,7 @@ function add_sp_n(){
 
 function halt() {
 // if interrupts disabled, stall 1 cycle, skip next instruction and continue
-  if (!IME) cpu_halted=true;
+  cpu_halted=true;
   PC++;
   return 4
 }; 
@@ -2585,7 +2585,7 @@ function cpu(){
       cycles += triggerInterrupt(0x60)
     }
 
-  }
+  } else cpu_halted=false
 
 
   instr_count += cycles;
