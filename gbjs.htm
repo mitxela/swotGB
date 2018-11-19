@@ -2596,7 +2596,8 @@ function cpu(){
 var requestStop = true;
 var targ=0x8e
 function runto(end){
-  if (!requestStop){ return; }
+  if (!requestStop) return
+  if (ROM.length<1000) return //don't run if no rom loaded
 
   requestStop =false;
 
@@ -2725,7 +2726,12 @@ const ioMap={
 
 
 var debugOn=true;
-document.onkeypress=function(e){if(e.keyCode==27){
+document.onkeypress=function(e){
+  if((e.keyCode||e.which)!=32) return;
+  if (requestStop) {
+    debugOn=false;
+    runto(0x10000)
+  } else {
     requestStop=true;
     debugOn=true;
     debugData();
