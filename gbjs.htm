@@ -31,10 +31,9 @@ html,body{overflow:hidden}
 
 
 
-<!--offset:<input type=text id=dbgoff value=0000 autocomplete=off onchange='debugData()' oninput='debugData()'>-->
-
-
 <script>
+var font=new Image();
+font.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAAAICAYAAAAGP/oPAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAALRJREFUeNrsVtsOgCAIleZ/V19u88HNUdwCrQfZelA8x4gDBCmlIy37zHIUUSll79cAcFJnOB+F1/BTd2Cslf8JL53R8kNEBeCgpY9AvRyF1/Bzd3CJ1/it8VrWeVap1cs0StIqTVKYVKVSFVqS1WLT4LFtf+mFLQBJjVhFGgXX/f7h2hLnl5JP4fs9zJs9pRg9P7wtAidldhzWKr7NAE8CPEM4YsiNHMIjfyJChvCy93YJMAD0L/qXa2HkvgAAAABJRU5ErkJggg==";
 
 function fullScreen(elem){
   debugOn = false;
@@ -90,11 +89,11 @@ function renderDisplayCanvas() {
   }
 
   if(showFrameRate) {
-    dctx.font = '8px monospace';
-    dctx.fillStyle = 'rgba(0,0,0,0.4)'
-    dctx.fillRect(0,0,30,8);
-    dctx.fillStyle = '#fff'
-    dctx.fillText(frameRate.toFixed(2), 1, 7, 160);
+    var t=frameRate.toFixed(2);
+    for (var c in t) {
+      dctx.drawImage(font, (t[c].charCodeAt(0)-46)*8, 0, 8,8,c*8,0,8,8)
+    }
+    
   }
 }
 
