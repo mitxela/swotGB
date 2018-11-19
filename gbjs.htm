@@ -2882,8 +2882,8 @@ function loadState(){
 <button onclick="requestStop ? run() : (requestStop=true); return false">Stop / Frame</button>
 <button onclick="runto();return false">Run To...</button>
 <button onclick="debugOn=!debugOn; debugData(); return false">Debug</button>
-<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked">Limit FPS</label>
-<label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked">Show FPS</label>
+<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked" autocomplete=off>Limit FPS</label>
+<label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked" autocomplete=off>Show FPS</label>
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'><br><br>
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
