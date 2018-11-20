@@ -303,7 +303,7 @@ const sound = {
     oscillator: audioCtx.createScriptProcessor(2048, 1, 1),
     gainNode:audioCtx.createGain(),
     amp:  function(a) { sound[4].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
-    polySteps:function(x){ qqq=0;sound[4].oscillator.onaudioprocess = x?processLFSR7bit:processLFSR15bit; },
+    polySteps:function(x){ lsfrPhase=0;sound[4].oscillator.onaudioprocess = x?processLFSR7bit:processLFSR15bit; },
     bitPeriod:1,
     freq:function(bits4, bits3){ 
       sound[4].bitPeriod=(audioCtx.sampleRate * snd4bit4[bits4] * snd4bit3[bits3])
@@ -330,18 +330,17 @@ sound.pulses = [
   generatePulseWave(0.75)
 ]
 
-var qqq=0;
+var lsfrPhase=0;
 var processLFSR7bit=function(e){
   var output = e.outputBuffer.getChannelData(0);
-  //var j=Math.ceil(sound[4].bitPeriod);
   var j=1/sound[4].bitPeriod;
-  var limit = j>1? 127/j :127;
+  var limit =127;
 
   for (var i = 0; i < 2048; i++) {
-    qqq+=j
-    if (qqq>limit) qqq=0;
+    lsfrPhase+=j
+    if (lsfrPhase>127) lsfrPhase=0;
     
-    output[i] = lfsr7bit[ Math.floor(qqq) ]
+    output[i] = lfsr7bit[ ~~lsfrPhase ]
   }
 
 }
@@ -350,8 +349,8 @@ var processLFSR15bit=function(e){
   var j=Math.ceil(sound[4].bitPeriod);
   
   for (var i = 0; i < 2048; i+=j) {
-    if ((++qqq)>=32767) qqq-=32767;
-    var s = lfsr15bit[ qqq ]
+    if ((++lsfrPhase)>=32767) lsfrPhase-=32767;
+    var s = lfsr15bit[ lsfrPhase ]
     for (var p=j;p--;) output[i+p] = s;
   }
 }
@@ -501,6 +500,7 @@ document.onkeyup=function(e){
 var doGamepad = function(){};
 window.addEventListener("gamepadconnected", function(e) {
   var gp=navigator.getGamepads()[e.gamepad.index];
+  var ff=!limitFrameRate;
   doGamepad = function (){
     joypad_dpad=
        (gp.axes[0] > 0 ?0:1) // right
@@ -513,6 +513,10 @@ window.addEventListener("gamepadconnected", function(e) {
       +(gp.buttons[2].pressed?0:2) // B
       +(gp.buttons[6].pressed?0:4) // select
       +(gp.buttons[7].pressed?0:8);// start
+
+    if (gp.buttons[5].pressed!=ff){
+      limitFrameRate=!(ff=gp.buttons[5].pressed)
+    }
   };
 });
 
@@ -758,16 +762,17 @@ function writeMem(addr, data){
     }
     // FF23 - NR44 - Channel 4 Counter/consecutive; Inital (R/W)
     if (addr==0xFF23) {
-      sound[4].initialized = true
+      if (data&(1<<7)) {
 
-      sound[4].env = MEM[0xFF21]>>4; //Default envelope value
-      sound[4].envCounter = 0;
-      sound[4].amp( sound[4].env/15 )
-
+        sound[4].initialized = true
+        sound[4].env = MEM[0xFF21]>>4; //Default envelope value
+        sound[4].envCounter = 0;
+        sound[4].amp( sound[4].env/15 )
+        sound[4].length = (64-(MEM[0xFF20]&0x3F));
+        
+        MEM[0xFF26] |= (1<<3) // flag sound 4 as on
+      }
       sound[4].lengthEnabled = (data&(1<<6)) !=0;
-      sound[4].length = (64-(MEM[0xFF20]&0x3F));
-      
-      MEM[0xFF26] |= (1<<3) // flag sound 4 as on
       MEM[addr] = data; 
       return
     }
