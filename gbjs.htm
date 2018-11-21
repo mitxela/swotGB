@@ -35,9 +35,14 @@ html,body{overflow:hidden}
 var font=new Image();
 font.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAAAICAYAAAAGP/oPAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAALRJREFUeNrsVtsOgCAIleZ/V19u88HNUdwCrQfZelA8x4gDBCmlIy37zHIUUSll79cAcFJnOB+F1/BTd2Cslf8JL53R8kNEBeCgpY9AvRyF1/Bzd3CJ1/it8VrWeVap1cs0StIqTVKYVKVSFVqS1WLT4LFtf+mFLQBJjVhFGgXX/f7h2hLnl5JP4fs9zJs9pRg9P7wtAidldhzWKr7NAE8CPEM4YsiNHMIjfyJChvCy93YJMAD0L/qXa2HkvgAAAABJRU5ErkJggg==";
 
-function fullScreen(elem){
-  debugOn = false;
-  (elem.requestFullscreen || elem.mozRequestFullScreen || elem.webkitRequestFullscreen || elem.msRequestFullscreen || (()=>{})).apply(elem);
+function fullScreen(e){
+  var d= document;
+  if (null!=(d.fullscreenElement || d.mozFullScreenElement || d.webkitFullscreenElement || d.msFullscreenElement)) {
+    (d.exitFullscreen || d.mozCancelFullScreen || d.webkitExitFullscreen || d.msExitFullscreen).apply(d);
+  } else {
+    debugOn = false;
+    (e.requestFullscreen || e.mozRequestFullScreen || e.webkitRequestFullscreen || e.msRequestFullscreen || (()=>{})).apply(e);
+  }
 }
 
 var dpixels = new Uint8Array(160*144);
@@ -303,7 +308,7 @@ const sound = {
     oscillator: audioCtx.createScriptProcessor(2048, 1, 1),
     gainNode:audioCtx.createGain(),
     amp:  function(a) { sound[4].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
-    polySteps:function(x){ lsfrPhase=0;sound[4].oscillator.onaudioprocess = x?processLFSR7bit:processLFSR15bit; },
+    polySteps:function(x){ lfsrPhase=0;sound[4].oscillator.onaudioprocess = x?processLFSR7bit:processLFSR15bit; },
     bitPeriod:1,
     freq:function(bits4, bits3){ 
       sound[4].bitPeriod=(audioCtx.sampleRate * snd4bit4[bits4] * snd4bit3[bits3])
@@ -330,17 +335,16 @@ sound.pulses = [
   generatePulseWave(0.75)
 ]
 
-var lsfrPhase=0;
+var lfsrPhase=0;
 var processLFSR7bit=function(e){
   var output = e.outputBuffer.getChannelData(0);
   var j=1/sound[4].bitPeriod;
-  var limit =127;
 
   for (var i = 0; i < 2048; i++) {
-    lsfrPhase+=j
-    if (lsfrPhase>127) lsfrPhase=0;
+    lfsrPhase+=j
+    if (lfsrPhase>127) lfsrPhase=0;
     
-    output[i] = lfsr7bit[ ~~lsfrPhase ]
+    output[i] = lfsr7bit[ ~~lfsrPhase ]
   }
 
 }
@@ -349,8 +353,8 @@ var processLFSR15bit=function(e){
   var j=Math.ceil(sound[4].bitPeriod);
   
   for (var i = 0; i < 2048; i+=j) {
-    if ((++lsfrPhase)>=32767) lsfrPhase-=32767;
-    var s = lfsr15bit[ lsfrPhase ]
+    if ((++lfsrPhase)>=32767) lfsrPhase-=32767;
+    var s = lfsr15bit[ lfsrPhase ]
     for (var p=j;p--;) output[i+p] = s;
   }
 }
