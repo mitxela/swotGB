@@ -179,14 +179,14 @@ var lfsr7bit = new Float32Array(127), lfsr15bit=new Float32Array(32767);
   do {
     bit  = ((lfsr >> 0) ^ (lfsr >> 1) ) & 1;
     lfsr =  (lfsr >> 1) | (bit << 6);
-    lfsr7bit[st++]=(bit/4-0.25);
+    lfsr7bit[st++]=(bit/4-0.125);
   } while (lfsr != start_state); // has a period of 127
 
   st=0;
   do {
     bit  = ((lfsr >> 0) ^ (lfsr >> 1)) & 1;
     lfsr =  (lfsr >> 1) | (bit << 14);
-    lfsr15bit[st++]=(bit/4-0.25);
+    lfsr15bit[st++]=(bit/4-0.125);
   } while (lfsr != start_state); // period of 32767
 
 })();
@@ -286,28 +286,26 @@ function setSound3Waveform() {
 const sound = {
   1:{ // Square / Pulse with sweep and envelope
     oscillator:audioCtx.createOscillator(),
-    gainNode:audioCtx.createGain(),
-    amp:  function(a) { sound[1].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
     freq: function(f) { sound[1].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
-    duty: function(d) { sound[1].oscillator.setPeriodicWave( sound.pulses[d] ) }
+    duty: function(d) { sound[1].oscillator.setPeriodicWave( sound.pulses[d] ) },
+    sweepTime: 0,
+    sweepDir: 1,
+    sweepShift: 0,
+    sweepPrescaler: 0,
+    freqnum: 0
   },
   2:{ // Square / Pulse with envelope
     oscillator:audioCtx.createOscillator(),
-    gainNode:audioCtx.createGain(),
-    amp:  function(a) { sound[2].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
     freq: function(f) { sound[2].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
     duty: function(d) { sound[2].oscillator.setPeriodicWave( sound.pulses[d] ) }
   },
   3:{ // Wave playback
-    oscillator: audioCtx.createOscillator(),
-    gainNode:audioCtx.createGain(),
-    amp:  function(a) { sound[3].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
-    freq: function(f) { sound[3].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) }
+    oscillator:audioCtx.createOscillator(),
+    freq: function(f) { sound[3].oscillator.frequency.setValueAtTime(f, audioCtx.currentTime) },
+    waveChanged:true
   },
   4:{ //Noise
-    oscillator: audioCtx.createScriptProcessor(2048, 1, 1),
-    gainNode:audioCtx.createGain(),
-    amp:  function(a) { sound[4].gainNode.gain.setValueAtTime(a, audioCtx.currentTime) },
+    oscillator:audioCtx.createScriptProcessor(2048, 1, 1),
     polySteps:function(x){ lfsrPhase=0;sound[4].oscillator.onaudioprocess = x?processLFSR7bit:processLFSR15bit; },
     bitPeriod:1,
     freq:function(bits4, bits3){ 
@@ -361,19 +359,12 @@ var processLFSR15bit=function(e){
 
 
 
-
-sound[4].oscillator.onaudioprocess = processLFSR15bit;
-sound[1].sweepTime = 0
-sound[1].sweepDir = 1;
-sound[1].sweepShift = 0;
-sound[1].sweepPrescaler = 0;
-sound[1].freqnum = 0;
-sound[3].waveChanged=true;
-
 sound.SO1 = audioCtx.createGain()
 sound.SO2 = audioCtx.createGain()
 
 for (var i=1;i<=4;i++){
+  sound[i].gainNode=audioCtx.createGain()
+  sound[i].amp=function(a) { this.gainNode.gain.setValueAtTime(a, audioCtx.currentTime) }
   sound[i].amp(0)
   sound[i].oscillator.connect(sound[i].gainNode)
   sound[i].gainNode.connect(sound.SO1)
@@ -391,9 +382,7 @@ for (var i=1;i<=4;i++){
 sound[1].oscillator.start()
 sound[2].oscillator.start()
 sound[3].oscillator.start()
-
-
-
+sound[4].oscillator.onaudioprocess = processLFSR15bit;
 
 sound.final = audioCtx.createChannelMerger(2)
 sound.SO1.connect(sound.final, 0, 1)
@@ -550,19 +539,15 @@ function readMem16(addr){
 }
 
 function writeMem(addr, data){
-  //if (addr<=0x1fff) return;//RAM enable
   if (addr<=0x7fff) { 
     doMBC(addr, data);
     return;
   }
 
-
-
   if (addr >= 0xA000 && addr <=0xBFFF && RAMenabled){
     cartRAM[ addr + RAMbankoffset ] = data;
     return
   }
-
 
   //DIV register: reset
   if (addr==0xFF04) {MEM[0xFF04]=0;return;}
@@ -642,7 +627,6 @@ function writeMem(addr, data){
       MEM[addr] = data
       return;
     }
-
 
 
     // FF16 - NR21 - Channel 2 Sound Length/Wave Pattern Duty (R/W)
@@ -781,7 +765,6 @@ function writeMem(addr, data){
     }
 
 
-
     // FF24 - NR50 - Channel control / ON-OFF / Volume (R/W)
     if (addr == 0xFF24) {
        //  Bit 7   - Output Vin to SO2 terminal (1=Enable)
@@ -816,9 +799,7 @@ function writeMem(addr, data){
       MEM[addr] = data; 
       return
     }
-    
 
-    
     return;
   }
   if (addr>=0xFF30 && addr<=0xFF3F) sound[3].waveChanged=true;
@@ -857,10 +838,7 @@ function writeMem(addr, data){
   // disable bootrom
   if (addr==0xFF50) { for (var i=0;i<256;i++) ROM[i]=FirstROMPage[i]; return}
 
-
-
   MEM[addr] = data;
-  
 }
 function writeMem16(addr, dataH, dataL){
   writeMem(addr, dataL)
@@ -1965,10 +1943,6 @@ opcodes[ 0xFF ] = rst(0x38);
 
 
 
-
-
-
-
 CBcodes[ 0x00 ] = shift(RLC, B);
 CBcodes[ 0x01 ] = shift(RLC, C);
 CBcodes[ 0x02 ] = shift(RLC, D);
@@ -2028,8 +2002,6 @@ CBcodes[ 0x3C ] = shift(SRL, H);
 CBcodes[ 0x3D ] = shift(SRL, L);
 CBcodes[ 0x3E ] = shift(SRL, HL );
 CBcodes[ 0x3F ] = shift(SRL, A);
-
-
 
 
 function swap(r){
@@ -2129,11 +2101,6 @@ for (var i=0;i<8;i++){
 
 var bootCode = "31 FE FF AF 21 FF 9F 32 CB 7C 20 FB 21 26 FF 0E 11 3E 80 32 E2 0C 3E F3 E2 32 3E 77 77 3E FC E0 47 11 A8 00 21 10 80 1A CD 95 00 CD 96 00 13 7B FE 34 20 F3 11 D8 00 06 08 1A 13 22 23 05 20 F9 3E 19 EA 10 99 21 2F 99 0E 0C 3D 28 08 32 0D 20 F9 2E 0F 18 F3 67 3E 64 57 E0 42 3E 91 E0 40 04 1E 02 0E 0C F0 44 FE 90 20 FA 0D 20 F7 1D 20 F2 0E 13 24 7C 1E 83 FE 62 28 06 1E C1 FE 64 20 06 7B E2 0C 3E 87 E2 F0 42 90 E0 42 15 20 D2 05 20 4F 16 20 18 CB 4F 06 04 C5 CB 11 17 C1 CB 11 17 05 20 F5 22 23 22 23 C9 00 00 00 0D 00 09 11 09 89 39 08 C9 00 0B 00 03 00 0C CC CC 00 0F 00 00 00 00 EC CC EC CC DD DD 99 99 98 89 EE FB 67 63 6E 0E CC DD 1F 9F 88 88 00 00 00 00 00 00 00 00 21 A8 00 11 A8 00 1A 13 BE 20 FE 23 7D FE 34 20 F5 06 19 78 86 23 05 20 FB 86 20 FE 3E 01 E0 50".split(" ").map(x => parseInt(x,16))
 
-
-//testProg = "3E 55 06 0F A0 D6 01 20 FB 3E 55".split(" ")
-//testProg = "3E 55 17 C2 02 00".split(" ")
-
-//for (var i=0;i< testProg.length; i++) MEM[i]=parseInt(testProg[i],16);
 
 
 function sweepCalculate(){
@@ -2752,7 +2719,7 @@ function ascii(c){
   .replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-  function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
+function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 (debugData=function(){
   if (!debugOn) return;
 
