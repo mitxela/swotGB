@@ -982,7 +982,7 @@ function resetSoundRegisters(){
    MEM[0xFF22] = 0x00   // NR43
    MEM[0xFF23] = 0xBF   // NR30
    MEM[0xFF24] = 0x77   // NR50
-   MEM[0xFF25] = 0xF3   // NR51
+   writeMem(0xFF25,0xF3)  // NR51
    MEM[0xFF26] = 0xF1   // NR52
 
 }
