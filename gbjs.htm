@@ -18,8 +18,6 @@
 #io{float: left;height:400px;overflow-y:scroll}
 #stack{float: left;height:400px;overflow-y:scroll}
 
-html,body{overflow:hidden}
-
 </style>
 <div id=displayBackground><canvas id=display
     width=160 height=144
@@ -451,6 +449,7 @@ var joypad_dpad = 0xef, joypad_buttons=0xdf; // 0=pressed
 var keys_dpad = 0xef, keys_buttons=0xdf; // 0=pressed
 
 document.onkeydown=function(e){
+  if (!requestStop) {e.preventDefault(); e.stopPropagation();}
   switch (e.keyCode){
     case 38: //Up
       keys_dpad &=~(1<<2); break;
@@ -468,6 +467,18 @@ document.onkeydown=function(e){
       keys_buttons &=~(1<<3); break;
     case 16: //Select
       keys_buttons &=~(1<<2); break;
+    case 32:
+      if (requestStop) {
+        e.preventDefault();
+        e.stopPropagation();
+        debugOn=false;
+        runto(0x10000)
+      } else {
+        requestStop=true;
+        debugOn=true;
+        debugData();
+      }
+    break;
   }
 }
 document.onkeyup=function(e){
@@ -2701,17 +2712,6 @@ const ioMap={
 
 
 var debugOn=true;
-document.onkeypress=function(e){
-  if((e.keyCode||e.which)!=32) return;
-  if (requestStop) {
-    debugOn=false;
-    runto(0x10000)
-  } else {
-    requestStop=true;
-    debugOn=true;
-    debugData();
-  }
-}
 
 
 function ascii(c){
