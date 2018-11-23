@@ -2282,7 +2282,8 @@ function cpu(){
     MEM[0xFF04]++;
   }
   if (timerEnable){
-    if ((timerPrescaler-= cycles)<0) {
+    timerPrescaler-= cycles
+    while (timerPrescaler<0) {
       timerPrescaler+=timerLength;
       if (MEM[0xFF05]++ ==0xFF) {
         MEM[0xFF05]=MEM[0xFF06];
