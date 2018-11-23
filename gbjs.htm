@@ -1687,6 +1687,7 @@ function halt() {
 }; 
 function stop(){
   //TODO
+  PC+=2;
   return 4
 }
 
@@ -2262,12 +2263,10 @@ function triggerInterrupt(vector){
 
 function cpu(){
 
-  var tmp = readMem(PC);
   var cycles =4;
 
   if (!cpu_halted) {
-    cycles = opcodes[tmp]();
-    if (typeof cycles ==="undefined") throw Error(`cycles! ${f(tmp,4)} @ ${f(PC,4)}`)
+    cycles = opcodes[readMem(PC)]();
   }
   
   // DIV  = 0xFF04 //Divider Register (R/W)
@@ -2594,7 +2593,7 @@ function cpu(){
       cycles += triggerInterrupt(0x60)
     }
 
-  } else cpu_halted=false
+  } //else cpu_halted=false
 
 
   instr_count += cycles;
@@ -2608,6 +2607,7 @@ function runto(end){
   if (!requestStop) return
   if (ROM.length<1000) return //don't run if no rom loaded
 
+  
   requestStop =false;
 
   var tcount=0;
@@ -2798,7 +2798,7 @@ function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 
   debug=""
   for (var i=SP+20;i>=SP-20;i-=2) {
-    if (i>0xffff || i<0) {debug+=" ----  ----\n"}else{
+    if (i>0xfffe || i<0) {debug+=" ----  ----\n"}else{
       var r=f(readMem(i+1)) + f(readMem(i));
       debug+="$"+f(i,4)+": "+r+(i==SP?"*":"")+" \n"
     }
@@ -2821,13 +2821,19 @@ var openFile = function(event) {
     for (var i=0;i<256;i++) ROM[i]=bootCode[i];
 
     // According to BGB
-    MEM[0xFF41] = 01
+    MEM[0xFF41] = 1
+    MEM[0xFF43] = 0
 
     resetSoundRegisters()
 
+    ROMbank = 1; ROMbankoffset = (ROMbank-1)*0x4000;
+    RAMbank =0; RAMbankoffset = RAMbank*0x2000 - 0xA000;
+    RAMenabled=false; MBCRamMode=0;
+    divPrescaler=0, timerPrescaler=0, timerLength=1, timerEnable=false;
+    LCD_enabled = false, LCD_lastmode=1, LCD_scan=0;
+    PC=0, SP=0,IME=false,cpu_halted=false;
 
-
-    debugData();
+    
   };
   reader.readAsArrayBuffer(input.files[0]);
 };
@@ -2884,9 +2890,7 @@ function loadState(){
   LCD_enabled= all.LCD_enabled;
   LCD_lastmode= all.LCD_lastmode;
 }
-</script>
 
-<script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
 </script>
 
