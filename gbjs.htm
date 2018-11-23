@@ -1,33 +1,59 @@
 <!doctype html><meta charset=utf-8>
 <style>
 #display{
-  width: 480px; height: 432px;
-  display: block;
+  width:480px; height:432px; display:block;
+  outline:3px solid #ccc; margin:5px auto;
 
   image-rendering: -moz-crisp-edges;
   image-rendering: -webkit-crisp-edges;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
-#displayBackground{
-  border: 3px solid #ccc;
-  float: right; margin-right: 100px;
-}
 
-#out{float: left}
-#io{float: left;height:400px;overflow-y:scroll}
-#stack{float: left;height:400px;overflow-y:scroll}
+
+#io,#stack{float:left;height:400px;overflow-y:scroll}
+#out{float:left;margin-right:10px}
+#dbg{display:none}
 
 </style>
-<div id=displayBackground><canvas id=display
-    width=160 height=144
-    onclick="runto(0x10000); debugOn=false"
-    ondblclick="fullScreen(this)"></canvas></div>
+<div id=dbg>
 <pre id=out></pre>
 <pre id=io></pre>
 <pre id=stack></pre>
 
+<button onclick="cpu(); debugData(); return false">CPU Step</button>
+<button onclick="requestStop ? run() : (requestStop=true); return false">Stop / Frame</button>
+<button onclick="runto();return false">Run To...</button>
+</div>
 
+<canvas id=display
+  width=160 height=144
+  onclick="runto(0x10000);"
+  ondblclick="fullScreen(this)"
+></canvas>
+
+
+
+<div style='width:480px;margin:auto'>
+
+<input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
+<div style='display:inline-block;vertical-align:middle'>
+<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked" autocomplete=off>Limit FPS</label>
+<label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked" autocomplete=off>Show FPS</label>
+</div>
+<br><br>
+
+
+<a href='#' onclick='saveSram(this);'>save .sav file</a> / 
+<a href='#' onclick='loadsav.click(); return false;'>load .sav file</a>
+<input type='file' id=loadsav style='display:none' accept='.sav' onchange='loadSram(event)'>
+<button onclick="saveState(); return false">save state</button>
+<button onclick="loadState(); return false">load state</button>
+<button onclick="showDebug(!debugOn); return false">Debug</button>
+
+<br><br>
+Keyboard controls are arrow keys, A, S, Enter and Shift. Spacebar to pause emulation. Doubleclick for fullscreen. 
+</div>
 
 <script>
 var font=new Image();
@@ -38,7 +64,7 @@ function fullScreen(e){
   if (null!=(d.fullscreenElement || d.mozFullScreenElement || d.webkitFullscreenElement || d.msFullscreenElement)) {
     (d.exitFullscreen || d.mozCancelFullScreen || d.webkitExitFullscreen || d.msExitFullscreen).apply(d);
   } else {
-    debugOn = false;
+    showDebug(false);
     (e.requestFullscreen || e.mozRequestFullScreen || e.webkitRequestFullscreen || e.msRequestFullscreen || (()=>{})).apply(e);
   }
 }
@@ -471,12 +497,9 @@ document.onkeydown=function(e){
       if (requestStop) {
         e.preventDefault();
         e.stopPropagation();
-        debugOn=false;
         runto(0x10000)
       } else {
         requestStop=true;
-        debugOn=true;
-        debugData();
       }
     break;
   }
@@ -507,10 +530,10 @@ window.addEventListener("gamepadconnected", function(e) {
   var ff=!limitFrameRate;
   doGamepad = function (){
     joypad_dpad=
-       (gp.axes[0] > 0 ?0:1) // right
-      +(gp.axes[0] < 0 ?0:2) // left
-      +(gp.axes[1] < 0 ?0:4) // up
-      +(gp.axes[1] > 0 ?0:8); // down
+       (gp.axes[0] > 0.3 ?0:1) // right
+      +(gp.axes[0] <-0.3 ?0:2) // left
+      +(gp.axes[1] <-0.3 ?0:4) // up
+      +(gp.axes[1] > 0.3 ?0:8); // down
 
     joypad_buttons=
        (gp.buttons[0].pressed?0:1) // A
@@ -2580,7 +2603,7 @@ function cpu(){
 
 
 var requestStop = true;
-var targ=0x8e
+var targ=0x40 //v-blank
 function runto(end){
   if (!requestStop) return
   if (ROM.length<1000) return //don't run if no rom loaded
@@ -2628,15 +2651,19 @@ function run(){
       window.setTimeout(run, 0);
     }
   } else {
-    sound[1].amp(0); sound[2].amp(0); sound[3].amp(0); sound[4].amp(0);
+    requestStop=true
+    sound[1].amp(0);
+    sound[2].amp(0);
+    sound[3].amp(0);
+    sound[4].amp(0);
   }
-  debugData()
+  if (debugOn) debugData()
 }
 
 
 
 const ioMap={
-0xFF00:"P1/JOYP ",
+0xFF00:"JOYP ",
 0xFF01:"SB ",
 0xFF02:"SC ",
 0xFF04:"DIV ",
@@ -2711,7 +2738,12 @@ const ioMap={
 
 
 
-var debugOn=true;
+var debugOn=false;
+function showDebug(on){
+  debugOn = on;
+  document.getElementById('dbg').style.display= on?'block':'none';
+  if (on) debugData();
+}
 
 
 function ascii(c){
@@ -2721,9 +2753,8 @@ function ascii(c){
 
 function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
 (debugData=function(){
-  if (!debugOn) return;
 
-  var debugOffset = PC&0xFF00;// parseInt(document.getElementById('dbgoff').value,16);
+  var debugOffset = PC&0xFF00;
   var debug = "";
   for (var j=0;j<16;j++) {
 
@@ -2803,9 +2834,10 @@ var openFile = function(event) {
 
 
 
-function saveSram(){
+function saveSram(a){
+  a.download=fileinput.files[0].name.replace(/\.gb$/,'.sav')
   var len = [0,2,8,32,128,64][ROM[0x149]]*1024 //won't work for mbc2
-  return 'data:application/octet-stream;base64,'+btoa(String.fromCharCode(...cartRAM.slice(0,len)))
+  a.href='data:application/octet-stream;base64,'+btoa(String.fromCharCode(...cartRAM.slice(0,len)))
 }
 function loadSram(e) {
   var reader = new FileReader();
@@ -2853,23 +2885,10 @@ function loadState(){
   LCD_lastmode= all.LCD_lastmode;
 }
 </script>
-<button onclick="cpu(); debugData(); return false">CPU</button>
-<button onclick="requestStop ? run() : (requestStop=true); return false">Stop / Frame</button>
-<button onclick="runto();return false">Run To...</button>
-<button onclick="debugOn=!debugOn; debugData(); return false">Debug</button>
-<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked" autocomplete=off>Limit FPS</label>
-<label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked" autocomplete=off>Show FPS</label>
-<input type='file' accept='.gb' id=fileinput onchange='openFile(event)'><br><br>
+
 <script>
 if (fileinput.files.length) openFile({"target":{"files":fileinput.files}})
 </script>
 
-.sav: 
-<a href='#' download='test.sav' onclick='this.href=saveSram();'>save</a>
-<a href='#' onclick='loadsav.click(); return false;'>load</a>
-<input type='file' id=loadsav style='display:none' accept='.sav' onchange='loadSram(event)'>
 
-state:
-<button onclick="saveState(); return false">quick save</button>
-<button onclick="loadState(); return false">quick load</button>
 
