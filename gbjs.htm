@@ -1059,7 +1059,7 @@ function ld_from_mem(a, b, c){
   if (b==Immediate) return function(){
     REG[a] = readMem( readMem( PC+1 ) + (readMem( PC+2 ) <<8) );
     PC+=3;
-    return 12;
+    return 16;
   }
 
   return function(){
@@ -2079,7 +2079,7 @@ function bit(b, r) {
     FLAGS.H = true;
     FLAGS.N = false;
     PC++
-    return 16
+    return 12
   }
   return function(){
     FLAGS.Z = ((REG[r] & b) == 0)
