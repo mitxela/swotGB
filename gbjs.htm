@@ -58,7 +58,7 @@
 <br><br>
 Keyboard controls are arrow keys, A, S, Enter and Shift. Doubleclick for fullscreen. 
 
-<a href=# onclick='gamepadConfig();return false'>Configure Gamepad</a>
+<a href=# onclick='gamepad.config();return false'>Configure Gamepad</a>
 <span id=gamepadText></span>
 </div>
 
@@ -524,29 +524,56 @@ document.onkeyup=function(e){
   }
 }
 var doGamepad = function(){};
-window.addEventListener("gamepadconnected", function(e) {
-  
-  if (localStorage.gamepad) gamepad.set(JSON.parse(localStorage.gamepad))
-});
-window.addEventListener("gamepaddisconnected", function(e) {
-  
-  if (localStorage.gamepad) gamepad.set(JSON.parse(localStorage.gamepad))
-});
+// gamepad localstorage type: 0 for button, 1 for axes neg, 2 for axes pos
+
 var gamepad={
+  ctrl:["up","down","left","right","A","B","start","select","ff"],
+  
   config:function(){
-    gamepadText.innerHTML="Press button for Up"
-  },
-  wait:function(){
+    if (gamepadText.innerHTML) return
     var gp=navigator.getGamepads();
-    for (var i=gp.length;i--;) {
-      if (!gp[i]) continue;
-      console.log(gp[i],gp.length)
+    var inuseAP=[],inuseAN=[],inuseB=[];
+    for (var i=gp.length;i--;) inuseAP[i]=[],inuseAN[i]=[],inuseB[i]=[];
+    var learnstate=0;
+
+    gamepadText.innerHTML="Press button for "+gamepad.ctrl[learnstate];
+
+    function setSingle(gpid, type, n){
+      if (learnstate>=gamepad.ctrl.length) return
+      gamepad.layout[gamepad.ctrl[learnstate]]={gpid,type,n};
+
+      learnstate++
+      gamepadText.innerHTML=learnstate>=gamepad.ctrl.length?
+        "":"Press button for "+gamepad.ctrl[learnstate];
     }
+    var wait=function(){
+      for (var i=gp.length;i--;) {
+        if (!gp[i]) continue;
+        for (var j=gp[i].buttons.length;j--;) {
+          if (gp[i].buttons[j].pressed && !inuseB[i][j]) {
+            inuseB[i][j]=true
+            setSingle(i, 0, j)
+          }
+        }
+        for (var j=gp[i].axes.length;j--;) {
+          if (gp[i].axes[j]>0.3 && !inuseAP[i][j]) {
+            inuseAP[i][j]=true
+            setSingle(i, 2, j)
+          } else if (gp[i].axes[j]<-0.3 && !inuseAN[i][j]) {
+            inuseAN[i][j]=true
+            setSingle(i, 1, j)
+          }
+        }
+      }
+      if (learnstate<gamepad.ctrl.length) setTimeout(wait,20)
+      else gamepad.set(),localStorage.gamepad=JSON.stringify(gamepad.layout);
+    }
+    setTimeout(wait,20)
   },
 
-  set:function(o){
-    var gp=navigator.getGamepads();
-    for (var i of ["up","down","left","right","A","B","start","select","ff"]) {
+  set:function(){
+    var gp=navigator.getGamepads(), o=gamepad.layout ||{};
+    for (var i of gamepad.ctrl) {
       gamepad[i]=()=>false;
       if (!o[i] || !o[i].hasOwnProperty("gpid") || !gp[o[i].gpid]) continue;
       let g=gp[o[i].gpid], n=o[i].n;
@@ -578,22 +605,9 @@ var gamepad={
   }
 }
 
-// 0 for button
-// 1 for axes neg
-// 2 for axes pos
-localStorage.gamepad=JSON.stringify({
-  up:    {gpid:0,type:1,n:1},
-  down:  {gpid:0,type:2,n:1},
-  left:  {gpid:0,type:1,n:0},
-  right: {gpid:0,type:2,n:0},
-  A:     {gpid:0,type:0,n:0},
-  B:     {gpid:0,type:0,n:2},
-  start: {gpid:0,type:0,n:7},
-  select:{gpid:0,type:0,n:6},
-  ff:    {gpid:0,type:0,n:5}
-});
-
-
+if (localStorage.gamepad) gamepad.layout=JSON.parse(localStorage.gamepad);
+window.addEventListener("gamepadconnected", gamepad.set);
+window.addEventListener("gamepaddisconnected", gamepad.set);
 
 
 function readMem(addr){
