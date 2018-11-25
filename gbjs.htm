@@ -528,7 +528,7 @@ var doGamepad = function(){};
 
 var gamepad={
   ctrl:["up","down","left","right","A","B","start","select","ff"],
-  
+  layout:{},
   config:function(){
     if (gamepadText.innerHTML) return
     var gp=navigator.getGamepads();
@@ -547,6 +547,7 @@ var gamepad={
         "":"Press button for "+gamepad.ctrl[learnstate];
     }
     var wait=function(){
+      gp=navigator.getGamepads();
       for (var i=gp.length;i--;) {
         if (!gp[i]) continue;
         for (var j=gp[i].buttons.length;j--;) {
@@ -576,30 +577,31 @@ var gamepad={
     for (var i of gamepad.ctrl) {
       gamepad[i]=()=>false;
       if (!o[i] || !o[i].hasOwnProperty("gpid") || !gp[o[i].gpid]) continue;
-      let g=gp[o[i].gpid], n=o[i].n;
+      let id=o[i].gpid, n=o[i].n;
       if (o[i].type==0) {
-        gamepad[i]=()=>g.buttons[n].pressed;
+        gamepad[i]=(g)=>g[id].buttons[n].pressed;
       } else if (o[i].type==1) {
-        gamepad[i]=()=>g.axes[n]<-0.3;
+        gamepad[i]=(g)=>g[id].axes[n]<-0.3;
       } else if (o[i].type==2) {
-        gamepad[i]=()=>g.axes[n]>0.3;
+        gamepad[i]=(g)=>g[id].axes[n]>0.3;
       }
     }
     var ff=!limitFrameRate;
     doGamepad = function (){
+      var gp=navigator.getGamepads();
       joypad_dpad=
-         (gamepad.right()?0:1)
-        +(gamepad.left() ?0:2)
-        +(gamepad.up()   ?0:4)
-        +(gamepad.down() ?0:8);
+         (gamepad.right(gp)?0:1)
+        +(gamepad.left(gp) ?0:2)
+        +(gamepad.up(gp)   ?0:4)
+        +(gamepad.down(gp) ?0:8);
 
       joypad_buttons=
-         (gamepad.A()     ?0:1)
-        +(gamepad.B()     ?0:2)
-        +(gamepad.select()?0:4)
-        +(gamepad.start() ?0:8);
+         (gamepad.A(gp)     ?0:1)
+        +(gamepad.B(gp)     ?0:2)
+        +(gamepad.select(gp)?0:4)
+        +(gamepad.start(gp) ?0:8);
 
-      var gff=gamepad.ff();
+      var gff=gamepad.ff(gp);
       if (gff!=ff) limitFrameRate=!(ff=gff)
     };
   }
