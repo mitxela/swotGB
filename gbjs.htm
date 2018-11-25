@@ -37,14 +37,18 @@
 <div style='width:480px;margin:auto'>
 
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
+
+<button id=runstop onclick='requestStop? runto(0x10000) : requestStop=true'>Run/Stop</button>
 <div style='display:inline-block;vertical-align:middle'>
-<label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked" autocomplete=off>Limit FPS</label>
-<label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked" autocomplete=off>Show FPS</label>
+  <label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked" autocomplete=off>Limit FPS</label>
+  <label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked" autocomplete=off>Show FPS</label>
 </div>
+
+
 <br><br>
 
 
-<a href='#' onclick='saveSram(this);'>save .sav file</a> / 
+<a href='#' onclick='saveSram(this); return false;'>save .sav file</a> / 
 <a href='#' onclick='loadsav.click(); return false;'>load .sav file</a>
 <input type='file' id=loadsav style='display:none' accept='.sav' onchange='loadSram(event)'>
 <button onclick="saveState(); return false">save state</button>
@@ -52,7 +56,10 @@
 <button onclick="showDebug(!debugOn); return false">Debug</button>
 
 <br><br>
-Keyboard controls are arrow keys, A, S, Enter and Shift. Spacebar to pause emulation. Doubleclick for fullscreen. 
+Keyboard controls are arrow keys, A, S, Enter and Shift. Doubleclick for fullscreen. 
+
+<a href=# onclick='gamepadConfig();return false'>Configure Gamepad</a>
+<span id=gamepadText></span>
 </div>
 
 <script>
@@ -475,11 +482,12 @@ var joypad_dpad = 0xef, joypad_buttons=0xdf; // 0=pressed
 var keys_dpad = 0xef, keys_buttons=0xdf; // 0=pressed
 
 document.onkeydown=function(e){
-  if (!requestStop) {e.preventDefault(); e.stopPropagation();}
   switch (e.keyCode){
     case 38: //Up
+      if (!requestStop) {e.preventDefault(); e.stopPropagation();}
       keys_dpad &=~(1<<2); break;
     case 40: //Down
+      if (!requestStop) {e.preventDefault(); e.stopPropagation();}
       keys_dpad &=~(1<<3); break;
     case 37: //Left
       keys_dpad &=~(1<<1); break;
@@ -493,15 +501,6 @@ document.onkeydown=function(e){
       keys_buttons &=~(1<<3); break;
     case 16: //Select
       keys_buttons &=~(1<<2); break;
-    case 32:
-      if (requestStop) {
-        e.preventDefault();
-        e.stopPropagation();
-        runto(0x10000)
-      } else {
-        requestStop=true;
-      }
-    break;
   }
 }
 document.onkeyup=function(e){
@@ -526,26 +525,75 @@ document.onkeyup=function(e){
 }
 var doGamepad = function(){};
 window.addEventListener("gamepadconnected", function(e) {
-  var gp=navigator.getGamepads()[e.gamepad.index];
-  var ff=!limitFrameRate;
-  doGamepad = function (){
-    joypad_dpad=
-       (gp.axes[0] > 0.3 ?0:1) // right
-      +(gp.axes[0] <-0.3 ?0:2) // left
-      +(gp.axes[1] <-0.3 ?0:4) // up
-      +(gp.axes[1] > 0.3 ?0:8); // down
-
-    joypad_buttons=
-       (gp.buttons[0].pressed?0:1) // A
-      +(gp.buttons[2].pressed?0:2) // B
-      +(gp.buttons[6].pressed?0:4) // select
-      +(gp.buttons[7].pressed?0:8);// start
-
-    if (gp.buttons[5].pressed!=ff){
-      limitFrameRate=!(ff=gp.buttons[5].pressed)
-    }
-  };
+  
+  if (localStorage.gamepad) gamepad.set(JSON.parse(localStorage.gamepad))
 });
+window.addEventListener("gamepaddisconnected", function(e) {
+  
+  if (localStorage.gamepad) gamepad.set(JSON.parse(localStorage.gamepad))
+});
+var gamepad={
+  config:function(){
+    gamepadText.innerHTML="Press button for Up"
+  },
+  wait:function(){
+    var gp=navigator.getGamepads();
+    for (var i=gp.length;i--;) {
+      if (!gp[i]) continue;
+      console.log(gp[i],gp.length)
+    }
+  },
+
+  set:function(o){
+    var gp=navigator.getGamepads();
+    for (var i of ["up","down","left","right","A","B","start","select","ff"]) {
+      gamepad[i]=()=>false;
+      if (!o[i] || !o[i].hasOwnProperty("gpid") || !gp[o[i].gpid]) continue;
+      let g=gp[o[i].gpid], n=o[i].n;
+      if (o[i].type==0) {
+        gamepad[i]=()=>g.buttons[n].pressed;
+      } else if (o[i].type==1) {
+        gamepad[i]=()=>g.axes[n]<-0.3;
+      } else if (o[i].type==2) {
+        gamepad[i]=()=>g.axes[n]>0.3;
+      }
+    }
+    var ff=!limitFrameRate;
+    doGamepad = function (){
+      joypad_dpad=
+         (gamepad.right()?0:1)
+        +(gamepad.left() ?0:2)
+        +(gamepad.up()   ?0:4)
+        +(gamepad.down() ?0:8);
+
+      joypad_buttons=
+         (gamepad.A()     ?0:1)
+        +(gamepad.B()     ?0:2)
+        +(gamepad.select()?0:4)
+        +(gamepad.start() ?0:8);
+
+      var gff=gamepad.ff();
+      if (gff!=ff) limitFrameRate=!(ff=gff)
+    };
+  }
+}
+
+// 0 for button
+// 1 for axes neg
+// 2 for axes pos
+localStorage.gamepad=JSON.stringify({
+  up:    {gpid:0,type:1,n:1},
+  down:  {gpid:0,type:2,n:1},
+  left:  {gpid:0,type:1,n:0},
+  right: {gpid:0,type:2,n:0},
+  A:     {gpid:0,type:0,n:0},
+  B:     {gpid:0,type:0,n:2},
+  start: {gpid:0,type:0,n:7},
+  select:{gpid:0,type:0,n:6},
+  ff:    {gpid:0,type:0,n:5}
+});
+
+
 
 
 function readMem(addr){
@@ -2611,7 +2659,6 @@ function runto(end){
   
   requestStop =false;
 
-  var tcount=0;
   targ=end?end:parseInt(prompt('Address', f(targ,4)),16); 
 
   run()
@@ -2649,6 +2696,7 @@ function run(){
     if (limitFrameRate){
       window.requestAnimationFrame(run);
     }else{
+      frameCountdown+=frameClocks*2 //this can go much higher
       window.setTimeout(run, 0);
     }
   } else {
@@ -2872,6 +2920,7 @@ function saveState(){
   })
 }
 function loadState(){
+  if (!localStorage.savestate) return
   for (var i=0;i<256;i++) ROM[i]=FirstROMPage[i];
   var all=JSON.parse(localStorage.savestate);
   MEM = Uint8Array.from(all.MEM.split(","));
