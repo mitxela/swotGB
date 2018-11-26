@@ -1038,12 +1038,31 @@ function doMBC(addr, data){
     }
   break;
 
-  // case 0x19: //  MBC5
-  // case 0x1A: //  MBC5+RAM
-  // case 0x1B: //  MBC5+RAM+BATTERY
+  case 0x19: //  MBC5
+  case 0x1A: //  MBC5+RAM
+  case 0x1B: //  MBC5+RAM+BATTERY
   // case 0x1C: //  MBC5+RUMBLE
   // case 0x1D: //  MBC5+RUMBLE+RAM
   // case 0x1E: //  MBC5+RUMBLE+RAM+BATTERY
+    if (addr <= 0x1FFF) {
+      RAMenabled = ((data & 0x0F) == 0xA) 
+    } else if (addr <= 0x2FFF){
+      // Allows access to bank 0
+      ROMbank &= 0x100;
+      ROMbank |= data;
+      ROMbankoffset = (ROMbank-1)*0x4000;
+      while (ROMbankoffset>ROM.length) ROMbankoffset-=ROM.length;
+    } else if (addr <= 0x3FFF){
+      ROMbank &= 0xFF;
+      if (data&1) ROMbank+=0x100;
+      ROMbankoffset = (ROMbank-1)*0x4000;
+      while (ROMbankoffset>ROM.length) ROMbankoffset-=ROM.length;
+    } else if (addr<=0x5fff) {
+      RAMbank=data&0x0F;
+      RAMbankoffset = RAMbank*0x2000 - 0xA000
+    }
+  break;
+
   // case 0x20: //  MBC6
   // case 0x22: //  MBC7+SENSOR+RUMBLE+RAM+BATTERY
   // case 0xFC: //  POCKET CAMERA
