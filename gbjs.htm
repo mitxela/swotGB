@@ -527,14 +527,22 @@ var doGamepad = function(){};
 // gamepad localstorage type: 0 for button, 1 for axes neg, 2 for axes pos
 
 var gamepad={
-  ctrl:["up","down","left","right","A","B","start","select","ff"],
+  ctrl:["up","down","left","right","A","B","start","select","FastForward"],
   layout:{},
   config:function(){
     if (gamepadText.innerHTML) return
     var gp=navigator.getGamepads();
+    var nogamepads=true;
     var inuseAP=[],inuseAN=[],inuseB=[];
-    for (var i=gp.length;i--;) inuseAP[i]=[],inuseAN[i]=[],inuseB[i]=[];
+    for (var i=gp.length;i--;) {
+      if (gp[i]!==null) nogamepads=false;
+      inuseAP[i]=[],inuseAN[i]=[],inuseB[i]=[];
+    }
     var learnstate=0;
+    if (nogamepads) {
+      alert("No Gamepads detected! Try unplugging and reconnecting them")
+      return;
+    }
 
     gamepadText.innerHTML="Press button for "+gamepad.ctrl[learnstate];
 
@@ -601,7 +609,7 @@ var gamepad={
         +(gamepad.select(gp)?0:4)
         +(gamepad.start(gp) ?0:8);
 
-      var gff=gamepad.ff(gp);
+      var gff=gamepad.FastForward(gp);
       if (gff!=ff) limitFrameRate=!(ff=gff)
     };
   }
