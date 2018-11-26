@@ -92,7 +92,6 @@ for (i=0;i<160*144;i++){
 dctx.putImageData(dImgData,0,0)
 
 // 60FPS -> one frame is 69905 cycles
-var instr_count = 0;
 
 var last_frame_time = 0;
 var frame = 0;
@@ -586,11 +585,11 @@ var gamepad={
       gamepad[i]=()=>false;
       if (!o[i] || !o[i].hasOwnProperty("gpid") || !gp[o[i].gpid]) continue;
       let id=o[i].gpid, n=o[i].n;
-      if (o[i].type==0) {
+      if (o[i].type==0 && gp[id].buttons.length>n) {
         gamepad[i]=(g)=>g[id].buttons[n].pressed;
-      } else if (o[i].type==1) {
+      } else if (o[i].type==1 && gp[id].axes.length>n) {
         gamepad[i]=(g)=>g[id].axes[n]<-0.3;
-      } else if (o[i].type==2) {
+      } else if (o[i].type==2 && gp[id].axes.length>n) {
         gamepad[i]=(g)=>g[id].axes[n]>0.3;
       }
     }
@@ -2666,7 +2665,6 @@ function cpu(){
 
   }
 
-
   // Interrupts
   // FFFF - IE - Interrupt Enable (R/W)
   // FF0F - IF - Interrupt Flag (R/W)
@@ -2699,8 +2697,6 @@ function cpu(){
 
   } //else cpu_halted=false
 
-
-  instr_count += cycles;
   return cycles
 }
 
@@ -2889,7 +2885,7 @@ function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
   debug+="\nHL: "+ f(REG[H])+ f(REG[L])+"        C: "+FLAGS.C
   debug+="\nSP: "+ f(SP,4)
   debug+="\nPC: "+ f(PC,4)
-  debug+="\n\ncount: "+ instr_count
+  debug+="\n\nIME:"+IME
 
   out.innerHTML=debug;
 
