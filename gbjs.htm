@@ -38,7 +38,7 @@
 
 <input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
 
-<button id=runstop onclick='requestStop? runto(0x10000) : requestStop=true'>Run/Stop</button>
+<button onclick='requestStop? runto(0x10000) : requestStop=true'>Run/Stop</button>
 <div style='display:inline-block;vertical-align:middle'>
   <label style="display:block"><input type=checkbox checked=checked onchange="limitFrameRate=this.checked" autocomplete=off>Limit FPS</label>
   <label style="display:block"><input type=checkbox onchange="showFrameRate=this.checked" autocomplete=off>Show FPS</label>
@@ -48,8 +48,8 @@
 <br><br>
 
 
-<a href='#' onclick='saveSram(this); return false;'>save .sav file</a> / 
-<a href='#' onclick='loadsav.click(); return false;'>load .sav file</a>
+<a href='#' onclick='saveSram(this);'>save .sav file</a> / 
+<a href='#' onclick='document.getElementById("loadsav").click(); return false;'>load .sav file</a>
 <input type='file' id=loadsav style='display:none' accept='.sav' onchange='loadSram(event)'>
 <button onclick="saveState(); return false">save state</button>
 <button onclick="loadState(); return false">load state</button>
@@ -81,7 +81,7 @@ var dpixels = new Uint8Array(160*144);
 var limitFrameRate = true;
 var showFrameRate = false;
 
-var display = document.getElementById('display'), dctx = display.getContext('2d');
+var dctx = document.getElementById('display').getContext('2d');
 
 var dImgData = dctx.getImageData(0,0,160,144);
 
@@ -528,8 +528,9 @@ var doGamepad = function(){};
 var gamepad={
   ctrl:["up","down","left","right","A","B","start","select","FastForward"],
   layout:{},
+  text:document.getElementById("gamepadText"),
   config:function(){
-    if (gamepadText.innerHTML) return
+    if (gamepad.text.innerHTML) return
     var gp=navigator.getGamepads();
     var nogamepads=true;
     var inuseAP=[],inuseAN=[],inuseB=[];
@@ -543,14 +544,14 @@ var gamepad={
       return;
     }
 
-    gamepadText.innerHTML="Press button for "+gamepad.ctrl[learnstate];
+    gamepad.text.innerHTML="Press button for "+gamepad.ctrl[learnstate];
 
     function setSingle(gpid, type, n){
       if (learnstate>=gamepad.ctrl.length) return
       gamepad.layout[gamepad.ctrl[learnstate]]={gpid,type,n};
 
       learnstate++
-      gamepadText.innerHTML=learnstate>=gamepad.ctrl.length?
+      gamepad.text.innerHTML=learnstate>=gamepad.ctrl.length?
         "":"Press button for "+gamepad.ctrl[learnstate];
     }
     var wait=function(){
@@ -2887,14 +2888,14 @@ function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
   debug+="\nPC: "+ f(PC,4)
   debug+="\n\nIME:"+IME
 
-  out.innerHTML=debug;
+  document.getElementById('out').innerHTML=debug;
 
   debug=""
   for (var i in ioMap) {
     var r=f(readMem(i));
     debug+="$"+f(i*1,4)+": "+(r==0?"--":r)+" - "+ioMap[i]+" \n"
   }
-  io.innerHTML=debug
+  document.getElementById('io').innerHTML=debug
 
   debug=""
   for (var i=SP+20;i>=SP-20;i-=2) {
@@ -2903,7 +2904,7 @@ function f(a,l) {return ("0000"+a.toString(16).toUpperCase()).slice(-l||-2)}
       debug+="$"+f(i,4)+": "+r+(i==SP?"*":"")+" \n"
     }
   }
-  stack.innerHTML=debug
+  document.getElementById('stack').innerHTML=debug
 
 })();
 
@@ -2939,7 +2940,7 @@ var openFile = function(event) {
 };
 
 
-
+var fileinput=document.getElementById("fileinput");
 function saveSram(a){
   a.download=fileinput.files[0].name.replace(/\.gb$/,'.sav')
   var len = [0,2,8,32,128,64][ROM[0x149]]*1024
