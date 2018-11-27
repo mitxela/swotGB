@@ -36,7 +36,7 @@
 
 <div style='width:480px;margin:auto'>
 
-<input type='file' accept='.gb' id=fileinput onchange='openFile(event)'>
+<input type='file' accept='.gb,.gbc' id=fileinput onchange='openFile(event)'>
 
 <button onclick='requestStop? runto(0x10000) : requestStop=true'>Run/Stop</button>
 <div style='display:inline-block;vertical-align:middle'>
@@ -2942,7 +2942,7 @@ var openFile = function(event) {
 
 var fileinput=document.getElementById("fileinput");
 function saveSram(a){
-  a.download=fileinput.files[0].name.replace(/\.gb$/,'.sav')
+  a.download=fileinput.files[0].name.replace(/\.gbc?$/,'.sav')
   var len = [0,2,8,32,128,64][ROM[0x149]]*1024
 
   if (ROM[0x147]==5 || ROM[0x147]==6) len=512; //MBC2
