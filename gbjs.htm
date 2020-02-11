@@ -91,9 +91,8 @@ for (i=0;i<160*144;i++){
 
 dctx.putImageData(dImgData,0,0)
 
-// 60FPS -> one frame is 69905 cycles
 
-var last_frame_time = 0;
+var lastSampleTime = 0;
 var frame = 0;
 var frameRate = 0;
 const sampleFrames = 5;
@@ -119,8 +118,8 @@ function renderDisplayCanvas() {
   if (++frame >= sampleFrames){
     frame = 0;
     var time = performance.now()
-    frameRate = ((1000 * sampleFrames / (time - last_frame_time)) + frameRate) / 2;
-    last_frame_time = time;
+    frameRate = ((1000 * sampleFrames / (time - lastSampleTime)) + frameRate) / 2;
+    lastSampleTime = time;
   }
 
   if(showFrameRate) {
@@ -2721,11 +2720,24 @@ function runto(end){
 // DIV speed 16384 => CPU/256
 
 const soundStepClocks = 4194304/256;
-const frameClocks = 4194304/60;
+const frameClocks = 4194304/59.7;
+const frameIntervalMs = 1000/59.7;
 var soundStepCountdown = soundStepClocks;
 var frameCountdown = frameClocks;
+var lastFrame = performance.now();
 
-function run(){
+function run(time){
+  if (limitFrameRate){
+    time = time || performance.now()
+    let d = time - lastFrame
+    if (d >= frameIntervalMs -0.1) {
+      lastFrame = time - (d % frameIntervalMs)
+    } else {
+      requestAnimationFrame(run);
+      return
+    }
+  }
+
   doGamepad()
 
   while (true){
