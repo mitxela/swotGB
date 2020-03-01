@@ -117,9 +117,8 @@ function renderDisplayCanvas() {
 
   if (++frame >= sampleFrames){
     frame = 0;
-    var time = performance.now()
-    frameRate = ((1000 * sampleFrames / (time - lastSampleTime)) + frameRate) / 2;
-    lastSampleTime = time;
+    frameRate = ((1000 * sampleFrames / (thisFrame - lastSampleTime)) + frameRate)/2;
+    lastSampleTime = thisFrame;
   }
 
   if(showFrameRate) {
@@ -2724,14 +2723,14 @@ const frameClocks = 4194304/59.7;
 const frameIntervalMs = 1000/59.7;
 var soundStepCountdown = soundStepClocks;
 var frameCountdown = frameClocks;
-var lastFrame = performance.now();
+var thisFrame, lastFrame = performance.now();
 
 function run(time){
+  thisFrame = time || performance.now()
   if (limitFrameRate){
-    time = time || performance.now()
-    let d = time - lastFrame
-    if (d >= frameIntervalMs -0.1) {
-      lastFrame = time - (d % frameIntervalMs)
+    let d = thisFrame - lastFrame
+    if (d >= frameIntervalMs - 0.1) {
+      lastFrame = thisFrame - (d % frameIntervalMs)
     } else {
       requestAnimationFrame(run);
       return
