@@ -1782,7 +1782,7 @@ function add_sp_n(){
 
 function halt() {
 // if interrupts disabled, stall 1 cycle, skip next instruction and continue
-  cpu_halted=true;
+  if (IME) cpu_halted=true;
   PC++;
   return 4
 }; 
